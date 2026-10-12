@@ -35,19 +35,20 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
   }catch(e){onError(e.message)}
  };
  const activate=()=>{sync.current?.activate();if(sync.current)setLocal(sync.current.view());setControls(true)};
+ const frameLoaded=()=>{sendPlayer('getStatus');if(sync.current?.phase==='loading'){sync.current.activate();setLocal(sync.current.view())}};
  const reload=()=>{
   if(sync.current){sync.current.reset();sync.current.report(true,true)}
   onReload(); // New iframe and handshake; no stale sample or protocol survives.
  };
  useEffect(()=>{
-  if(party){sync.current=new PartySync({sendPlayer,sendStatus:data=>api.send(data),command,now:()=>api.serverNow()});sync.current.update(party);sync.current.tick(api.ws?.readyState===1)}
+  if(party){sync.current=new PartySync({sendPlayer,sendStatus:data=>api.send(data),command,now:()=>api.serverNow()});sync.current.update(party);if(api.ws?.readyState===1)sync.current.activate();sync.current.tick(api.ws?.readyState===1)}
   const receive=event=>{
    const data=parsePlayerEvent(event,iframe.current?.contentWindow,source,title,season,episode);if(!data)return;
    origin.current=data.origin;learnedOrigin.current=true;setReady(true);if(data.controllable)protocol.current=true;
    const next={...statsRef.current,...data,playing:data.playing??statsRef.current.playing};statsRef.current=next;setStats(next);setLoadFailed(false);
-   if(!party&&data.controllable&&!resume.current){resume.current=true;if(position>0)sendPlayer('seek',position)}
+   if(!party&&data.duration>0&&data.controllable&&!resume.current){resume.current=true;if(position>0)sendPlayer('seek',position)}
    if(sync.current){sync.current.update(partyRef.current);sync.current.event(data);setLocal(sync.current.view())}
-   if((!party||sync.current?.ready)&&(data.position>0||data.playing===true||data.event==='ended')){
+   if(data.duration>0&&(!party||sync.current?.ready)&&(data.position>0||data.playing===true||data.event==='ended')){
     lastProgress.current=progressValue(title,title.media_type==='tv'?season:0,title.media_type==='tv'?episode:0,data.position,data.duration,data.event==='ended');
     if(Date.now()-lastSave.current>=10000||['pause','ended'].includes(data.event)){lastSave.current=Date.now();save()}
    }
@@ -76,20 +77,29 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
  },[controls,episodes]);
  const playing=party?local.playing:stats.playing,positionNow=stats.position;
  const member=party?.members.find(m=>m.profileId===api.profile);
- const canControl=protocol.current&&(!party||(local.ready&&member?.ready))&&api.status==='Connected';
+ const canControl=stats.duration>0&&protocol.current&&(!party||(local.ready&&member?.ready))&&api.status==='Connected';
  const waiting=party&&(!local.ready||!member?.ready),showHelp=loadFailed||(waited&&(!ready||waiting))||local.phase==='blocked';
+ const failureText=loadFailed?`${src.name} could not load its player.`:
+  local.failure==='no-response'?`${src.name} has not returned a player connection. Reload or choose another party source.`:
+  local.failure==='no-media'?`${src.name} connected, but has not loaded a video for this title. Try another party source.`:
+  local.failure==='start-failed'?`${src.name} returned video details, but playback did not advance. The source may be buffering or the browser may require Play inside the video.`:
+  local.failure==='alignment'?`${src.name} played, but did not confirm pause or seek at the party position. Try another party source.`:
+  local.failure==='stalled'?`${src.name} stopped advancing or reporting playback. The party is paused while this player recovers.`:
+  !protocol.current?`Waiting for ${src.name} to return its player connection. If it stays blank, reload or choose another party source.`:
+  !stats.duration?`${src.name} connected, but has not loaded the video yet.`:
+  `Waiting for ${src.name} to confirm moving video and playback controls.`;
  const waitingText=api.status!=='Connected'?'Reconnecting — the party is paused.':member?.error&&protocol.current?member.error:
-  local.phase==='blocked'?'The video did not start or stopped responding. Click Play inside the video, reload it, or change the party source.':
-  local.phase==='aligning'?'Video started. Checking pause and matching the party position…':
-  local.phase==='starting'?'Starting this browser’s video… If nothing happens, click Play inside the video itself.':
-  'Start the video on this browser once. ANY will check it and pause at the party position. You may need to click Play inside the video.';
+  local.phase==='blocked'?failureText:
+  local.phase==='aligning'?'Matching this video to the party…':
+  local.phase==='starting'?'Starting the video automatically…':
+  local.ready?'Video ready. Waiting for the party…':`Connecting to ${src.name}… The video will start automatically.`;
  async function playEpisode(s,e){if(party)await command('episode',{season:s,episode:e});else go(watchLink(title,{season:s,episode:e,source}));setEpisodes(false)}
  return <main className="player-page" ref={root} tabIndex={0}>
   <div className="player-top"><Button icon="left" aria-label="Leave player" onClick={()=>go(`/${title.media_type}/${title.id}`)}/><div><h1>{title.title}</h1><span>{title.media_type==='tv'?`Season ${season} · Episode ${episode} · `:''}{party?'Together · ':''}{`Source ${SOURCES.indexOf(src)+1} · ${src.name}`}</span></div><Button icon="expand" aria-label="Fullscreen" onClick={()=>{if(document.fullscreenElement)document.exitFullscreen?.();else root.current?.requestFullscreen?.().catch(()=>onError('Fullscreen is unavailable in this browser.'))}}/></div>
-  <div className="video-stage"><iframe ref={iframe} src={url.current} title={`${title.title} player`} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen onError={()=>setLoadFailed(true)}/></div>
+  <div className="video-stage"><iframe ref={iframe} src={url.current} title={`${title.title} player`} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen onLoad={frameLoaded} onError={()=>setLoadFailed(true)}/></div>
   {(controls||waiting)&&<div className="player-controls">
    {party&&!party.playing&&<div className="party-presence">{party.members.filter(m=>m.status==='joined').map(m=><div key={m.profileId}><Avatar id={m.profile?.avatar} size={38}/><span>{m.profile?.name}<small>{m.error||(!m.connected?'Reconnecting':m.ready?m.buffering?'Buffering':'Ready':'Waiting for video')}</small></span></div>)}</div>}
-   {waiting&&<div className="party-start" role="status"><p>{waitingText}</p><Button tone="red" icon="play" disabled={api.status!=='Connected'||['starting','aligning'].includes(local.phase)} onClick={activate}>Start video on this browser</Button></div>}
+   {waiting&&<div className="party-start" role="status"><p>{waitingText}</p>{local.phase==='blocked'&&local.failure==='start-failed'&&<Button tone="red" icon="play" disabled={api.status!=='Connected'} onClick={activate}>Retry playback</Button>}</div>}
    <div className="timeline"><span>{clock(positionNow)}</span><input aria-label="Playback position" type="range" min="0" max={stats.duration||1} step="1" value={Math.min(positionNow,stats.duration||1)} disabled={!canControl} onChange={e=>command('seek',{position:Number(e.target.value)})}/><span>{clock(stats.duration)}</span></div>
    <div className="player-actions">
     <Button icon={playing?'pause':'play'} disabled={!canControl} aria-label={playing?'Pause':'Play'} onClick={()=>command(playing?'pause':'play')}/>
@@ -100,7 +110,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
     </select><Button onClick={()=>setControls(false)}>Hide controls</Button>
    </div>
    <p className="player-note">{party?(playing?'Playing on this browser':waiting?'Waiting for this browser’s video':party.playing?'Starting party playback…':party.desiredPlaying?'Waiting for everyone’s video':'Party paused'):!src.controls?'Use the video’s own playback controls. This source does not offer remote browser controls.':!protocol.current?'Use the video’s controls while ANY waits for its control connection.':'Space: play / pause · Left / right: skip · Up / down: controls · Esc: hide controls, then leave'}</p>
-   {showHelp&&<div className="playback-help"><p>{party?'ANY has not confirmed a working, controllable video here. A connected party does not mean the source has loaded.':src.progress?'No playback status received yet. If the video is blank, try another source or reload the player.':'This source does not report playback to ANY. Automatic watch-history tracking is unavailable.'}</p><div className="actions"><Button onClick={reload}>Reload player</Button>{!party&&<><a className="button" href={url.current} target="_blank" rel="noopener noreferrer">Open source ↗</a><Button onClick={()=>setConfirmed(true)}>Mark as watched</Button></>}</div></div>}
+   {showHelp&&<div className="playback-help"><p>{party?failureText:src.progress?'No playback status received yet. If the video is blank, try another source or reload the player.':'This source does not report playback to ANY. Automatic watch-history tracking is unavailable.'}</p><div className="actions"><Button onClick={reload}>Reload player</Button>{!party&&<><a className="button" href={url.current} target="_blank" rel="noopener noreferrer">Open source ↗</a><Button onClick={()=>setConfirmed(true)}>Mark as watched</Button></>}</div></div>}
   </div>}
   {!controls&&!waiting&&<Button className="show-controls" onClick={()=>setControls(true)}>Show controls</Button>}
   {switching&&<Modal title="Change the party source?" onClose={()=>setSwitching('')}><p>Switch everyone to {sourceById(switching).name}. The party pauses and each player reloads at the same position. Everyone stays in the party.</p><Button tone="red" disabled={busy} onClick={async()=>{setBusy(true);try{await api.command('join',{partyId:party.id,source:switching});setSwitching('')}catch(e){onError(e.message)}finally{setBusy(false)}}}>Switch source for everyone</Button></Modal>}

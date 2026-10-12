@@ -3,21 +3,21 @@ import assert from 'node:assert/strict';
 import {parsePlayerEvent,playerUrl,PartySync,expectedPosition,SOURCES} from '../src/playback.js';
 const title={id:1399,media_type:'tv',title:'Test'},frame={};
 const event=(patch={},origin='https://vidfast.vc',source=frame)=>({source,origin,data:{type:'PLAYER_EVENT',data:{event:'playerstatus',currentTime:30,duration:1800,tmdbId:1399,mediaType:'tv',season:1,episode:2,playing:false,...patch}}});
-test('provider messages require the correct frame, origin, title, episode and finite positions',()=>{assert.ok(parsePlayerEvent(event(),frame,'vidfast',title,1,2)?.controllable);for(const e of [event({},'https://evil.test'),event({},'https://vidfast.vc',{}),event({tmdbId:42}),event({season:2}),event({episode:3}),event({currentTime:NaN}),event({duration:0})])assert.equal(parsePlayerEvent(e,frame,'vidfast',title,1,2),null)});
-test('all eight player URLs preserve movie and episode routing and party autoplay is disabled',()=>{assert.equal(SOURCES.length,8);for(const s of SOURCES){const u=new URL(playerUrl(s.id,title,1,2,0,true));assert.match(u.pathname,/tv\/1399\/1\/2$/);assert.equal(u.searchParams.get('autoplay'),'false');assert.equal(u.searchParams.get('autoNext'),'false')}assert.match(playerUrl('movish',{...title,media_type:'movie'},1,1),/\/player\/movie\/1399\?/);assert.throws(()=>playerUrl('movish',title,1,-1))});
+test('provider messages require the correct frame, origin, title, episode and finite positions',()=>{assert.ok(parsePlayerEvent(event(),frame,'vidfast',title,1,2)?.controllable);for(const e of [event({},'https://evil.test'),event({},'https://vidfast.vc',{}),event({tmdbId:42}),event({season:2}),event({episode:3}),event({currentTime:NaN}),event({duration:-1})])assert.equal(parsePlayerEvent(e,frame,'vidfast',title,1,2),null)});
+test('all eight player URLs preserve movie and episode routing and joining requests automatic playback',()=>{assert.equal(SOURCES.length,8);for(const s of SOURCES){const u=new URL(playerUrl(s.id,title,1,2,0,true));assert.match(u.pathname,/tv\/1399\/1\/2$/);assert.equal(u.searchParams.get('autoplay'),'true');assert.equal(u.searchParams.get('autoNext'),'false')}assert.match(playerUrl('movish',{...title,media_type:'movie'},1,1),/\/player\/movie\/1399\?/);assert.throws(()=>playerUrl('movish',title,1,-1))});
 function fixture(position=30){
  let now=10000;const sent=[],status=[],commands=[];
  const sync=new PartySync({now:()=>now,sendPlayer:(...v)=>sent.push(v),sendStatus:v=>status.push(v),command:(...v)=>commands.push(v)});
  const p={id:'party',epoch:1,position,duration:1800,anchor:now,playing:false};sync.update(p);
  const sample=(patch={})=>sync.event({event:'playerstatus',position,duration:1800,playing:false,controllable:true,...patch});
  const advance=ms=>now+=ms;
- const prime=()=>{sample();sync.activate();sample({event:'play',playing:true});advance(1000);sample({position:position+1,playing:true});assert.equal(sync.phase,'aligning');sample({position,playing:false});assert.equal(sync.ready,true)};
+ const prime=()=>{sample();sample({event:'play',playing:true});advance(1000);sample({position:position+1,playing:true});assert.equal(sync.phase,'aligning');sample({position,playing:false});assert.equal(sync.ready,true)};
  return {sync,p,sent,status,commands,sample,advance,prime,now:()=>now};
 }
 test('metadata and repeated paused status cannot declare a browser ready',()=>{
  const f=fixture();f.sync.tick();f.sample();f.advance(2000);f.sync.tick();
  assert.equal(f.status.at(-1).ready,false);assert.equal(f.status.at(-1).canControl,true);
- assert.equal(f.sync.view().playing,false);assert.equal(f.sync.phase,'start');
+ assert.equal(f.sync.view().playing,false);assert.equal(f.sync.phase,'starting');
 });
 test('startup verifies moving video and pause before readiness, without broadcasting initial play',()=>{
  const f=fixture();f.prime();assert.equal(f.status.at(-1).ready,true);assert.deepEqual(f.commands,[]);
@@ -33,7 +33,7 @@ test('native iframe play can unlock startup without a parent-page click',()=>{
 });
 test('ignored startup play is reported as blocked, never ready',()=>{
  const f=fixture();f.sample();f.sync.activate();
- for(let i=0;i<14;i++){f.advance(1000);f.sample();f.sync.tick()}
+ for(let i=0;i<22;i++){f.advance(1000);f.sample();f.sync.tick()}
  assert.equal(f.sync.phase,'blocked');assert.equal(f.status.at(-1).ready,false);assert.equal(f.status.at(-1).buffering,true);
  f.advance(2000);f.sample();f.sync.tick();assert.equal(f.sync.ready,false,'a paused response cannot clear the failure');
 });
@@ -76,4 +76,32 @@ test('disconnect, stale telemetry and reload discard readiness',()=>{
   assert.equal(f.sync.ready,false);assert.equal(f.sync.view().playing,false);
  }
  assert.equal(expectedPosition({position:10,duration:30,playing:true,anchor:11000},10000),10);
+});
+
+test('startup is automatic, retries a dropped play command, and never starts the whole party',()=>{
+ const f=fixture();f.sync.tick();assert.equal(f.sync.phase,'loading');
+ f.advance(19000);f.sync.tick();assert.equal(f.sync.phase,'loading','provider loading gets a separate deadline');
+ f.sample();assert.equal(f.sent.at(-1)[0],'play');assert.equal(f.sync.phase,'starting');
+ f.advance(3000);f.sync.tick();assert.equal(f.sent.filter(v=>v[0]==='play').length,2);
+ f.sample({playing:true});f.advance(1000);f.sample({position:31,playing:true});
+ f.sample({playing:false});assert.equal(f.sync.ready,true);assert.deepEqual(f.commands,[]);
+});
+test('zero-duration handshake can start the source but cannot prove media readiness',()=>{
+ const loading=parsePlayerEvent(event({duration:0,currentTime:0}),frame,'vidfast',title,1,2);
+ assert.equal(loading.mediaLoaded,false);assert.equal(loading.controllable,true);
+ const f=fixture(0);f.sync.event(loading);assert.equal(f.sent.at(-1)[0],'play');
+ f.advance(21000);f.sync.tick();assert.equal(f.sync.view().failure,'no-media');assert.equal(f.sync.ready,false);
+});
+test('missing provider response times out without an endless automatic retry',()=>{
+ const f=fixture();f.sync.activate();f.sync.tick();f.advance(46000);f.sync.tick();
+ assert.equal(f.sync.view().failure,'no-response');const sent=f.sent.length;
+ f.advance(60000);f.sync.tick();assert.equal(f.sent.length,sent);assert.equal(f.sync.ready,false);
+});
+
+test('late provider and media arrival recover automatically, but repeated paused metadata does not',()=>{
+ const f=fixture();f.sync.tick();f.advance(46000);f.sync.tick();assert.equal(f.sync.failure,'no-response');
+ f.sample({position:0,duration:0});assert.equal(f.sync.phase,'starting');
+ f.advance(21000);f.sync.tick();assert.equal(f.sync.failure,'no-media');
+ f.sample({position:0,duration:0});assert.equal(f.sync.phase,'blocked');
+ f.sample();assert.equal(f.sync.phase,'starting');assert.equal(f.sent.at(-1)[0],'play');
 });

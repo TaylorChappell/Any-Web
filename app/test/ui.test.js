@@ -59,18 +59,19 @@ test('web flow connects from the build variable without an access-code screen, s
  await act(async()=>{FakeSocket.latest.onmessage({data:JSON.stringify({type:'snapshot',profiles:[profile],parties,sources:['vidfast','vidcore'],online:[]})})});
  assert.equal(document.querySelector('.timeline input').value,'0','room clock must not masquerade as local video');
  assert.equal(document.querySelector('[aria-label="Pause"]'),null,'no pause icon for a video that never started');
+ const partyPlaysBefore=requests.filter(r=>r.body?.action==='play').length;
  await act(async()=>playerEvent({}));assert.equal(document.querySelector('.timeline input').value,'42');
  assert.equal(document.querySelector('[aria-label="Play"]').disabled,true,'metadata is insufficient readiness');
- const partyPlaysBefore=requests.filter(r=>r.body?.action==='play').length;
- await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Start video on this browser')).click());
+ assert.equal([...document.querySelectorAll('button')].some(b=>b.textContent.includes('Start video on this browser')),false);
+ assert.equal(new URL(frame.src).searchParams.get('autoPlay'),'true');
  assert.equal(playerCommands.at(-1)[0].command,'play');assert.equal(playerCommands.at(-1)[1],'https://vidfast.vc');
  assert.equal(requests.filter(r=>r.body?.action==='play').length,partyPlaysBefore,'unlock does not start everyone');
  assert.equal(liveMessages.filter(m=>m.type==='status').at(-1).ready,false);
  // A frozen provider returns status but ignores play; after the startup deadline
  // a fresh status cannot hide the actionable error.
- const realDateNow=Date.now;Date.now=()=>realDateNow()+20000;
+ const realDateNow=Date.now;Date.now=()=>realDateNow()+22000;
  try{await act(async()=>{await new Promise(resolve=>setTimeout(resolve,1100))});assert.ok(document.querySelector('.playback-help'))}finally{Date.now=realDateNow}
- assert.match(document.querySelector('.playback-help').textContent,/not confirmed a working/);
+ assert.match(document.querySelector('.playback-help').textContent,/playback did not advance/);
  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Reload player').click());
  assert.notEqual(document.querySelector('.video-stage iframe'),frame,'reload mounts a new source window');
  await act(async()=>playerEvent({playing:true,currentTime:500}));

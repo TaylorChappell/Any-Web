@@ -60,7 +60,7 @@ root site using the same repository variable.
 ## Backend configuration
 
 Browser support is deployed on the same Railway service. No changes are needed
-for `https://taylorchappell.github.io` or `http://localhost:5173`.
+for `https://anymovies.fun`, `https://taylorchappell.github.io` or `http://localhost:5173`.
 
 If the frontend uses another GitHub account, a custom domain or a different
 local port, set Railway `ANY_WEB_ORIGINS` to a comma-separated list of **origins**,
@@ -81,7 +81,7 @@ one service replica. TMDB and release-admin credentials stay exclusively there.
 - The six-profile directory, names and 20 character avatar choices.
 - My List, thumbs up/down, hidden Continue Watching entries and watch progress.
 - Recommendation inputs, with title-based and genre-based suggestions.
-- Watch Together invitations, member presence and the party timeline.
+- Together invitations, member presence and the party timeline.
 
 The TV must run the version that supports shared profiles to use these features;
 older APKs with only local profiles cannot automatically see the new shared data.
@@ -103,7 +103,7 @@ device is active. If a second tab takes over, use the displayed reconnect action
 or select your profile again. Offline library changes retain their IDs for safe
 retry and stay attached to the profile that made them.
 
-## Playback and Watch Together
+## Playback and Together
 
 All eight source URL mappings are included. Normal playback defaults to Source 6
 Movish, matching the TV app. Settings and the player offer the other seven.
@@ -131,8 +131,8 @@ seeking requires a controllable source such as VidFast. The website does not
 invent positions or mark playback ready merely because an iframe has loaded.
 Switch to Source 4 for integrated resume, seeking and web party controls.
 
-Web parties start with Source 4 VidFast and load paused. Invite any other shared
-profiles from the friends button on a title. Invites appear in Watch Together.
+Web parties start with Source 4 VidFast and automatically verify local playback, then pause at the party position. Invite any other shared
+profiles from the friends button on a title. Invites appear in Together.
 Anyone joined can pause, play and seek; episode changes keep the same room.
 Leaving the title leaves the room. Pending invitations are not shown as joined
 members. Member avatars appear in the paused party controls.
@@ -196,10 +196,12 @@ The trailer icon on title details opens a large YouTube player immediately. Hove
 previews begin after three seconds. Browser autoplay restrictions may still require
 a click before audio starts.
 
-## Watch Together startup (0.2.5)
+## Together startup (0.2.7)
 
-Join the party, then choose **Start video on this browser**. Some providers or
-browsers require clicking Play inside the embedded video itself. ANY verifies
+Joining starts the video check automatically, using the provider autoplay option
+and play commands with bounded retries. The normal flow has no second startup
+button. Some browsers may still require a click inside the embedded video if
+audible autoplay is blocked; a retry appears only after playback fails. ANY verifies
 actual advancing playback and an acknowledged pause at the room position before
 reporting readiness. This short local startup check never sends a group Play.
 
