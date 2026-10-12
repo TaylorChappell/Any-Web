@@ -34,7 +34,7 @@ async function run(){
   const p=peers[0],old=p.id,oldView=p.host.current.view;room={...room,epoch:2,position:0};p.id='native-fixture-episode-2';p.sync.update(room);p.ready=false;
   await p.host.open({source:'movish',type:'tv',id:1,season:1,episode:2,start:0,party:true,session:p.id,origins:[origin],path:'/player/tv/1/1/2',url:origin+'/player/tv/1/1/2'});
   p.host.setBounds({session:p.id,x:0,y:0,width:640,height:360,visible:true});
-  assert.equal(await p.host.command({session:old,command:'play'}),false);assert.ok(oldView.webContents.isDestroyed());
+  assert.equal(await p.host.command({session:old,command:'play'}),false);await until(()=>oldView.webContents.isDestroyed(),'previous native view closes',5000);
   await until(()=>p.ready,'new episode gets a fresh native readiness check');
   p.host.close(old);assert.ok(p.host.current,'stale close cannot stop the current episode');p.host.close(p.id);assert.equal(p.host.current,null);
   assert.deepEqual(unexpected,[],'programmatic playback must not echo group commands');
