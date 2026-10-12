@@ -35,7 +35,7 @@ class PlayerHost{
  notify(current,data){if(this.current===current&&!this.win.isDestroyed())this.emit({session:current.spec.session,...data});}
  async inject(current){
   if(this.current!==current||current.view.webContents.isDestroyed()||!allowedPlayerURL(current.view.webContents.getURL(),current.spec))return;
-  try{const code=`(${installVideoBridge.toString()})(${JSON.stringify(current.spec)})`;current.injected=await current.view.webContents.executeJavaScriptInIsolatedWorld(WORLD,[{code}]);}catch{current.injected=false;}
+  try{const code=`(${installVideoBridge.toString()})(${JSON.stringify(current.spec)})`;current.injected=await current.view.webContents.executeJavaScriptInIsolatedWorld(WORLD,[{code}]);}catch(error){current.injected=false;current.lastError=error.message;}
  }
  async poll(current){
   if(this.current!==current||current.busy||!current.injected)return;
@@ -43,7 +43,7 @@ class PlayerHost{
   current.busy=true;
   try{const events=await current.view.webContents.executeJavaScriptInIsolatedWorld(WORLD,[{code:'globalThis.__ANY_NATIVE_PLAYER__?.poll() || []'}]);
    if(this.current===current&&Array.isArray(events))for(const data of events.slice(-17))if(validSample(data))this.notify(current,{kind:'status',data});
-  }catch{}finally{current.busy=false;}
+  }catch(error){current.lastError=error.message;}finally{current.busy=false;}
  }
  async command(input){
   const cmd=playerCommand(input),current=this.current;if(!current||current.spec.session!==input.session)return false;

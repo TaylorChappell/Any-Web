@@ -8,12 +8,12 @@ async function run(){
  const clip=fs.readFileSync(path.join(__dirname,'fixture.webm'));
  const server=http.createServer((req,res)=>{if(req.url==='/fixture.webm'){res.writeHead(200,{'Content-Type':'video/webm','Content-Length':clip.length});res.end(clip);return;}res.writeHead(200,{'Content-Type':'text/html'});res.end('<!doctype html><style>body{margin:0;background:black}video{width:640px;height:360px}</style><div id="mv-player"><video src="/fixture.webm" preload="auto" controls></video></div>');});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+server.address().port;
- const peers=[];let room={id:'fixture-party',epoch:1,position:3,duration:30,playing:false,anchor:Date.now()},heartbeat;
+ const peers=[],unexpected=[];let room={id:'fixture-party',epoch:1,position:3,duration:30,playing:false,anchor:Date.now()},heartbeat;
  try{
   for(let i=0;i<2;i++){
    const win=new BrowserWindow({show:true,width:700,height:440,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
    await win.loadURL('about:blank');let peer={win,events:[],ready:false};
-   peer.sync=new PartySync({now:Date.now,sendPlayer:(command,time)=>peer.host.command({session:peer.id,command,...(time===undefined?{}:{time})}).catch(()=>{}),sendStatus:s=>{peer.ready=s.ready;},command:()=>{throw Error('A programmatic playback event echoed a party command');}});
+   peer.sync=new PartySync({now:Date.now,sendPlayer:(command,time)=>peer.host.command({session:peer.id,command,...(time===undefined?{}:{time})}).catch(()=>{}),sendStatus:s=>{peer.ready=s.ready;},command:(...args)=>unexpected.push(args)});
    peer.host=new PlayerHost(win,{emit:message=>{if(message.kind==='error')throw Error(message.message);if(message.kind==='status'){peer.events.push(message.data);peer.sync.event(message.data);}},key:()=>{}});
    peer.id='native-fixture-session-'+i;peer.sync.update(room);peers.push(peer);
    await peer.host.open({source:'movish',type:'movie',id:1,season:1,episode:1,start:3,party:true,session:peer.id,origins:[origin],path:'/player/movie/1',url:origin+'/player/movie/1'});
@@ -37,8 +37,12 @@ async function run(){
   assert.equal(await p.host.command({session:old,command:'play'}),false);assert.ok(oldView.webContents.isDestroyed());
   await until(()=>p.ready,'new episode gets a fresh native readiness check');
   p.host.close(old);assert.ok(p.host.current,'stale close cannot stop the current episode');p.host.close(p.id);assert.equal(p.host.current,null);
+  assert.deepEqual(unexpected,[],'programmatic playback must not echo group commands');
   const report={passed:true,checks:['two real Chromium video decoders','automatic startup','native play and acknowledged pause','shared forward seek and rewind','drift below 1.5 seconds','episode reload and stale-session rejection','source has no Node or desktop IPC','sandbox and web security enabled'],platform:process.platform,electron:process.versions.electron,appVersion:app.getVersion()};
   const output=path.join(app.getPath('temp'),'ANY-desktop-test-result.json');fs.writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+ }catch(error){
+  for(const p of peers){let dom;try{dom=await p.host.current?.view.webContents.executeJavaScript('JSON.stringify({url:location.href,videos:Array.from(document.querySelectorAll("video")).map(v=>({paused:v.paused,time:v.currentTime,duration:v.duration,ready:v.readyState,seeking:v.seeking,error:v.error?.code}))})');}catch{}console.error(JSON.stringify({phase:p.sync.phase,ready:p.ready,sample:p.sync.sample,events:p.events.slice(-4),injected:p.host.current?.injected,lastError:p.host.current?.lastError,dom}));}
+  throw error;
  }finally{clearInterval(heartbeat);for(const p of peers){p.host.close();p.win.destroy();}await new Promise(r=>server.close(r));}
 }
 module.exports={run};
