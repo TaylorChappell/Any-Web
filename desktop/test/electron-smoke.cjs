@@ -17,7 +17,7 @@ async function run(){
    peer.control=input=>i===0?win.webContents.executeJavaScript(`window.anyDesktop.playerCommand(${JSON.stringify(input)})`):peer.host.command(input);
    peer.sync=new PartySync({now:Date.now,sendPlayer:(command,time)=>peer.control({session:peer.id,command,...(time===undefined?{}:{time})}).catch(()=>{}),sendStatus:s=>{peer.ready=s.ready;},command:(...args)=>unexpected.push(args)});
    peer.host=new PlayerHost(win,{emit:message=>{if(i===0)win.webContents.send('any:player-event',message);if(message.kind==='error')throw Error(message.message);if(message.kind==='status'){peer.events.push(message.data);peer.sync.event(message.data);}},key:()=>{}});
-   if(i===0){removeBridge=registerWindowBridge(win,peer.host,{isTrusted:url=>new URL(url).origin===origin});await win.webContents.executeJavaScript('window.nativeMessages=0;window.anyDesktop.onPlayerEvent(()=>window.nativeMessages++)');}
+   if(i===0){removeBridge=registerWindowBridge(win,peer.host,{isTrusted:url=>new URL(url).origin===origin});await win.webContents.executeJavaScript('window.nativeMessages=0;window.anyDesktop.onPlayerEvent(()=>window.nativeMessages++);true');}
    peer.id='native-fixture-session-'+i;peer.sync.update(room);peers.push(peer);
    await peer.host.open({source:'movish',type:'movie',id:1,season:1,episode:1,start:3,party:true,session:peer.id,origins:[origin],path:'/player/movie/1',url:origin+'/player/movie/1'});
    peer.host.setBounds({session:peer.id,x:0,y:0,width:640,height:360,visible:true});
