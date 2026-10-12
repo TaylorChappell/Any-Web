@@ -31,10 +31,10 @@ async function run(){
   await until(()=>peers.every(p=>!p.sync.sample.playing&&Math.abs(p.sync.sample.position-6)<1.5),'shared pause and seek');
   room={...room,position:12};await until(()=>peers.every(p=>Math.abs(p.sync.sample.position-12)<1.5),'shared forward seek');
   room={...room,position:2};await until(()=>peers.every(p=>Math.abs(p.sync.sample.position-2)<1.5),'shared rewind');
-  const p=peers[0],old=p.id,oldView=p.host.current.view;room={...room,epoch:2,position:0};p.id='native-fixture-episode-2';p.sync.update(room);p.ready=false;
+  const p=peers[0],old=p.id,oldContents=p.host.current.view.webContents;room={...room,epoch:2,position:0};p.id='native-fixture-episode-2';p.sync.update(room);p.ready=false;
   await p.host.open({source:'movish',type:'tv',id:1,season:1,episode:2,start:0,party:true,session:p.id,origins:[origin],path:'/player/tv/1/1/2',url:origin+'/player/tv/1/1/2'});
   p.host.setBounds({session:p.id,x:0,y:0,width:640,height:360,visible:true});
-  assert.equal(await p.host.command({session:old,command:'play'}),false);await until(()=>oldView.webContents.isDestroyed(),'previous native view closes',5000);
+  assert.equal(await p.host.command({session:old,command:'play'}),false);await until(()=>oldContents.isDestroyed(),'previous native view closes',5000);
   await until(()=>p.ready,'new episode gets a fresh native readiness check');
   p.host.close(old);assert.ok(p.host.current,'stale close cannot stop the current episode');p.host.close(p.id);assert.equal(p.host.current,null);
   assert.deepEqual(unexpected,[],'programmatic playback must not echo group commands');
