@@ -1,0 +1,145 @@
+[
+  {
+    "index": 0,
+    "name": "Spider-Man",
+    "movieId": 557,
+    "image": "https://image.tmdb.org/t/p/w342/or6XJBVpcEbIkma0V9zshnbEtx4.jpg",
+    "movieTitle": "Spider-Man"
+  },
+  {
+    "index": 1,
+    "name": "Iron Man",
+    "movieId": 1726,
+    "image": "https://image.tmdb.org/t/p/w342/78lPtwv72eTNqFW9COBYI0dWDJa.jpg",
+    "movieTitle": "Iron Man"
+  },
+  {
+    "index": 2,
+    "name": "Groot",
+    "movieId": 232125,
+    "image": "https://image.tmdb.org/t/p/w342/3QfQYECgu6DX5UUWCBvv1Fl0BAJ.jpg",
+    "movieTitle": "I Am Groot",
+    "mediaType": "tv"
+  },
+  {
+    "index": 3,
+    "name": "Scarlet Witch",
+    "movieId": 85271,
+    "image": "https://image.tmdb.org/t/p/w342/ijWWwINc8h71NQ8j1LTJMFSj5wr.jpg",
+    "movieTitle": "WandaVision",
+    "mediaType": "tv"
+  },
+  {
+    "index": 4,
+    "name": "Thor",
+    "movieId": 10195,
+    "image": "https://image.tmdb.org/t/p/w342/prSfAi1xGrhLQNxVSUFh61xQ4Qy.jpg",
+    "movieTitle": "Thor"
+  },
+  {
+    "index": 5,
+    "name": "Batman",
+    "movieId": 414,
+    "image": "https://image.tmdb.org/t/p/w342/i0fJS8M5UKoETjjJ0zwUiKaR8tr.jpg",
+    "movieTitle": "Batman Forever"
+  },
+  {
+    "index": 6,
+    "name": "Wonder Woman",
+    "movieId": 297762,
+    "image": "https://image.tmdb.org/t/p/w342/v4ncgZjG2Zu8ZW5al1vIZTsSjqX.jpg",
+    "movieTitle": "Wonder Woman"
+  },
+  {
+    "index": 7,
+    "name": "Joker",
+    "movieId": 475557,
+    "image": "https://image.tmdb.org/t/p/w342/g9l7iLYusH82bbEbwGCJzhVkOe2.jpg",
+    "movieTitle": "Joker"
+  },
+  {
+    "index": 8,
+    "name": "Harley Quinn",
+    "movieId": 495764,
+    "image": "https://image.tmdb.org/t/p/w342/h4VB6m0RwcicVEZvzftYZyKXs6K.jpg",
+    "movieTitle": "Birds of Prey (and the Fantabulous Emancipation of One Harley Quinn)"
+  },
+  {
+    "index": 9,
+    "name": "Superman",
+    "movieId": 49521,
+    "image": "https://image.tmdb.org/t/p/w342/8GFtkImmK0K1VaUChR0n9O61CFU.jpg",
+    "movieTitle": "Man of Steel"
+  },
+  {
+    "index": 10,
+    "name": "Michael Myers",
+    "movieId": 424139,
+    "image": "https://image.tmdb.org/t/p/w342/f7JAX5EGk4GgsEnus6OxyzwpFp7.jpg",
+    "movieTitle": "Halloween"
+  },
+  {
+    "index": 11,
+    "name": "Ghostface",
+    "movieId": 646385,
+    "image": "https://image.tmdb.org/t/p/w342/nD4M4Bx457ryLuKYpxFwQ2IBJ5w.jpg",
+    "movieTitle": "Scream"
+  },
+  {
+    "index": 12,
+    "name": "Pennywise",
+    "movieId": 474350,
+    "image": "https://image.tmdb.org/t/p/w342/zfE0R94v1E8cuKAerbskfD3VfUt.jpg",
+    "movieTitle": "It Chapter Two"
+  },
+  {
+    "index": 13,
+    "name": "Jason Voorhees",
+    "movieId": 9730,
+    "image": "https://image.tmdb.org/t/p/w342/1J7zudfR3VLPwAf9lK5YPfSu0n6.jpg",
+    "movieTitle": "Friday the 13th: The Final Chapter"
+  },
+  {
+    "index": 14,
+    "name": "Chucky",
+    "movieId": 11932,
+    "image": "https://image.tmdb.org/t/p/w342/yaIPNOcC7ZRuwH3maNwP9qzIo5G.jpg",
+    "movieTitle": "Bride of Chucky"
+  },
+  {
+    "index": 15,
+    "name": "Stitch",
+    "movieId": 552524,
+    "image": "https://image.tmdb.org/t/p/w342/ckQzKpQJO4ZQDCN5evdpKcfm7Ys.jpg",
+    "movieTitle": "Lilo & Stitch"
+  },
+  {
+    "index": 16,
+    "name": "Mickey Mouse",
+    "movieId": 756,
+    "image": "https://image.tmdb.org/t/p/w342/5m9njnidjR0syG2gpVPVgcEMB2X.jpg",
+    "movieTitle": "Fantasia",
+    "mediaType": "movie"
+  },
+  {
+    "index": 17,
+    "name": "Elsa",
+    "movieId": 330457,
+    "image": "https://image.tmdb.org/t/p/w342/mINJaa34MtknCYl5AjtNJzWj8cD.jpg",
+    "movieTitle": "Frozen II"
+  },
+  {
+    "index": 18,
+    "name": "Simba",
+    "movieId": 420818,
+    "image": "https://image.tmdb.org/t/p/w342/dzBtMocZuJbjLOXvrl4zGYigDzh.jpg",
+    "movieTitle": "The Lion King"
+  },
+  {
+    "index": 19,
+    "name": "Jack Skellington",
+    "movieId": 9479,
+    "image": "https://image.tmdb.org/t/p/w342/70ftUzJtCUjUbmMJcvNAxHcRQlS.jpg",
+    "movieTitle": "The Nightmare Before Christmas"
+  }
+]
