@@ -36,6 +36,9 @@ class PlayerHost{
   });
   current.timer=setInterval(()=>{
    if(Date.now()-current.lastBeat>8000){this.notify(current,{kind:'error',message:'The app connection to the player stopped. Reload the player.'});this.close(spec.session);return;}
+   // On Windows, fullscreen events can precede the final native content size.
+   // Reconcile it during the existing heartbeat without resizing unchanged views.
+   if(current.boundsInput?.fillWindow)this.syncBounds(current);
    this.poll(current);
   },250);
   wc.loadURL(spec.url).catch(()=>{});return {session:spec.session};
@@ -59,7 +62,8 @@ class PlayerHost{
   if(!current.injected||!allowedPlayerURL(current.view.webContents.getURL(),current.spec))return false;
   try{return await current.view.webContents.executeJavaScriptInIsolatedWorld(WORLD,[{code:`globalThis.__ANY_NATIVE_PLAYER__?.control(${JSON.stringify(cmd.command)},${JSON.stringify(cmd.time??null)}) || false`}]);}catch{return false;}
  }
- setBounds(input){const current=this.current;if(!current||current.spec.session!==input.session)return false;const rect=bounds(input,this.win.getContentSize());current.boundsInput={...input};current.view.setBounds(rect);current.view.setVisible(input.visible&&rect.width>0&&rect.height>0);current.visible=input.visible;return true;}
+ syncBounds(current){const rect=bounds(current.boundsInput,this.win.getContentSize()),previous=current.view.getBounds();if(['x','y','width','height'].some(k=>rect[k]!==previous[k]))current.view.setBounds(rect);const visible=current.boundsInput.visible&&rect.width>0&&rect.height>0;if(visible!==current.visible)current.view.setVisible(visible);current.visible=visible;}
+ setBounds(input){const current=this.current;if(!current||current.spec.session!==input.session)return false;bounds(input,this.win.getContentSize());current.boundsInput={...input};this.syncBounds(current);return true;}
  close(id){const current=this.current;if(!current||id&&current.spec.session!==id)return;this.current=null;clearInterval(current.timer);this.win.contentView.removeChildView(current.view);if(!current.view.webContents.isDestroyed())current.view.webContents.close();}
 }
 module.exports={PlayerHost};
