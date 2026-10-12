@@ -1,4 +1,4 @@
-# Validation — 12 October 2026 · Web 0.2.3
+# Validation — 12 October 2026 · Web 0.2.4
 
 - Production Vite build succeeds using the existing ANY frontend token. The token is public only in the compiled deployment; editable source, tests and workflow contain no real credential.
 - All 15 frontend tests pass, including the title trailer dialog, three-page category deduplication, MCU season/release filtering, enabling older TV invitations, explicit group source-switch confirmation and normal party-player navigation.
@@ -7,6 +7,8 @@
 - Existing root-file GitHub Pages hosting is preserved. Editable web source is in app/. The workflow builds from the repository variable ANY_API_TOKEN. The current compiled site does not require visitors to enter an access code.
 
 - GitHub Pages workflow 38268882632 completed successfully using the existing repository variable. The live site at https://taylorchappell.github.io/Any-Web/ serves the exact locally built JavaScript (index-BUXpEqMc.js). Automatic connection displayed the existing shared profiles without a code-entry prompt.
+
+- Live browsing caught a collection-list/detail state reuse bug. Collection routes now remount on identity changes; the DOM regression covers list → MCU → list → regular collection navigation.
 
 ## Limits
 

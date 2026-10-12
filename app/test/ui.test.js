@@ -21,7 +21,8 @@ test('web flow connects from the build variable without an access-code screen, s
   else if(u.pathname.endsWith('/parties'))data={parties,sources:['vidfast']};
   else if(u.pathname.endsWith('/commands')){if(body.action==='join'){parties[0]={...parties[0],source:body.source||parties[0].source,epoch:2,members:parties[0].members.map(m=>m.profileId===profile.id?{...m,status:'joined',onThisDevice:true}:m)}}data={partyId:parties[0]?.id};}
   else if(u.pathname.endsWith('/live-ticket'))data={ticket:'test-ticket'};
-  else if(u.pathname.includes('/v1/tmdb/'))data=u.pathname.match(/movie\/\d+$/)?{...film,id:Number(u.pathname.split('/').at(-1))}:u.pathname.includes('/videos')?{results:[]}:u.pathname.includes('genre/')?{genres:[{id:18,name:'Drama'}]}:u.pathname.includes('collection/')?{id:123,name:'Test collection',parts:[film]}:{results:[film],total_pages:1};
+  else if(u.pathname.includes('/v1/collections/mcu'))data={id:-1,name:'Marvel Cinematic Universe',parts:[{...film,collection_category:'film'}],missing_count:0};
+  else if(u.pathname.includes('/v1/tmdb/'))data=u.pathname.match(/movie\/\d+$/)?{...film,id:Number(u.pathname.split('/').at(-1))}:u.pathname.includes('/videos')?{results:[]}:u.pathname.includes('genre/')?{genres:[{id:18,name:'Drama'}]}:u.pathname.includes('collection/')?{id:Number(u.pathname.split('/').at(-1)),name:'Test collection',parts:[film]}:{results:[film],total_pages:1};
   return new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json'}})
  };
  class FakeSocket{constructor(){FakeSocket.latest=this;this.readyState=1;setTimeout(()=>{this.onopen?.();this.onmessage?.({data:JSON.stringify({type:'snapshot',serverNow:Date.now(),profiles:[profile],parties:[],sources:['vidfast'],online:[]})})},0)}send(){}close(){this.readyState=3}}
@@ -33,6 +34,13 @@ test('web flow connects from the build variable without an access-code screen, s
  assert.equal(document.querySelector('#access-code'),null);assert.equal(document.querySelector('input[type=password]'),null);
  assert.equal(localStorage.getItem('any.device').includes('testtest'),false,'only the device session is retained in storage');
  await act(async()=>document.querySelector('.profile-tile').click());await wait(()=>document.querySelector('.hero'));assert.equal(selected,true);
+ await act(async()=>document.querySelector('.collection-banner button').click());await wait(()=>document.querySelector('[aria-label="Explore Marvel Cinematic Universe"]'));
+ await act(async()=>document.querySelector('[aria-label="Explore Marvel Cinematic Universe"]').click());await wait(()=>document.querySelector('.collection-detail'));
+ assert.equal(document.querySelector('.collection-detail h1').textContent,'Marvel Cinematic Universe');
+ assert.equal(document.querySelectorAll('.collection-order').length,1);
+ await act(async()=>{location.hash='/collections';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.collections-grid'));
+ await act(async()=>document.querySelector('[aria-label="Explore Test collection"]').click());await wait(()=>document.querySelector('.collection-detail'));
+ assert.equal(document.querySelector('.collection-detail h1').textContent,'Test collection');
  await act(async()=>{location.hash='/movie/550';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('[aria-label="Add to My List"]'));
  await act(async()=>document.querySelector('[aria-label="Add to My List"]').click());await wait(()=>library.saved.length===1);assert.equal(library.saved[0].key,'movie:550');
  await act(async()=>document.querySelector('[aria-label="Thumbs up"]').click());await wait(()=>library.feedback.length===1);assert.equal(library.feedback[0].interested,true);
