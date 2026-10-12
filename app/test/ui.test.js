@@ -7,9 +7,11 @@ import {mkdir,rm} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
 
-test('web flow connects from the build variable without an access-code screen, selects shared profiles, searches, saves and rates a title',async t=>{
+for(const native of [false,true])test((native?'desktop':'web')+' flow connects from the build variable without an access-code screen, selects shared profiles, searches, saves and rates a title',async t=>{
  const dom=new JSDOM('<!doctype html><div id="root"></div>',{url:'https://taylorchappell.github.io/Any-Web/#/home',pretendToBeVisual:true});
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,location:dom.window.location,EventTarget:dom.window.EventTarget,Event:dom.window.Event,CustomEvent:dom.window.CustomEvent,IS_REACT_ACT_ENVIRONMENT:true,matchMedia:()=>({matches:false})});window.scrollTo=()=>{};
+ const nativeCommands=[],nativeOpens=[],nativeEvents=new Set(),nativeKeys=new Set();
+ if(native){globalThis.ResizeObserver=class{observe(){}disconnect(){}};window.anyDesktop={protocolVersion:1,version:'0.3.0',openPlayer:async input=>{nativeOpens.push(input);return {session:input.session}},closePlayer:async()=>{},playerCommand:async input=>{nativeCommands.push(input);return true},setPlayerBounds:async()=>true,fullscreen:async()=>true,onPlayerEvent:cb=>{nativeEvents.add(cb);return()=>nativeEvents.delete(cb)},onPlayerKey:cb=>{nativeKeys.add(cb);return()=>nativeKeys.delete(cb)}};}
  const liveMessages=[],requests=[],profile={id:'profile-one',name:'Taylor',avatar:0},library={saved:[],progress:[],feedback:[]};let selected=false,parties=[];
  const film={id:550,title:'Test Film',media_type:'movie',overview:'A test description.',poster_path:'/poster.jpg',backdrop_path:'/backdrop.jpg',release_date:'2025-01-01',vote_average:8.2,runtime:120,genres:[{id:18,name:'Drama'}],recommendations:{results:[]},videos:{results:[]},credits:{cast:[]}};
  globalThis.fetch=async(url,init={})=>{const u=new URL(url),body=init.body?JSON.parse(init.body):null;requests.push({path:u.pathname,headers:init.headers,body});let data={};
@@ -27,7 +29,7 @@ test('web flow connects from the build variable without an access-code screen, s
  };
  class FakeSocket{constructor(){FakeSocket.latest=this;this.readyState=1;setTimeout(()=>{this.onopen?.();this.onmessage?.({data:JSON.stringify({type:'snapshot',serverNow:Date.now(),profiles:[profile],parties:[],sources:['vidfast'],online:[]})})},0)}send(value){liveMessages.push(JSON.parse(value))}close(){this.readyState=3}}
  globalThis.WebSocket=FakeSocket;
- const out=resolve('node_modules/.cache/any-ui-test.mjs');await mkdir(resolve('node_modules/.cache'),{recursive:true});await build({entryPoints:['src/main.jsx'],outfile:out,bundle:true,platform:'browser',format:'esm',external:['react','react-dom','react-dom/client'],loader:{'.css':'empty'},define:{'import.meta.env.BASE_URL':'"./"','import.meta.env.VITE_ANY_API_TOKEN':JSON.stringify('test'.repeat(10))}});
+ const out=resolve('node_modules/.cache/any-ui-'+(native?'native':'web')+'-test.mjs');await mkdir(resolve('node_modules/.cache'),{recursive:true});await build({entryPoints:['src/main.jsx'],outfile:out,bundle:true,platform:'browser',format:'esm',external:['react','react-dom','react-dom/client'],loader:{'.css':'empty'},define:{'import.meta.env.BASE_URL':'"./"','import.meta.env.VITE_ANY_API_TOKEN':JSON.stringify('test'.repeat(10))}});
  const wait=async predicate=>{for(let i=0;i<60;i++){await act(async()=>{await new Promise(r=>setTimeout(r,10))});if(predicate())return}assert.fail('Expected UI state not reached: '+document.body.textContent.slice(0,800))};
  let app;await act(async()=>{app=await import(pathToFileURL(out).href)});t.after(async()=>{await act(()=>app.appRoot.unmount());dom.window.close();await rm(out,{force:true})}); await wait(()=>document.querySelector('.profile-tile'));
  assert.equal(requests.find(r=>r.path.endsWith('/devices')).headers.Authorization,'Bearer '+'test'.repeat(10));
@@ -50,11 +52,13 @@ test('web flow connects from the build variable without an access-code screen, s
  parties=[{id:'party-one',title:film,source:'movish',season:0,episode:0,position:42,duration:0,epoch:1,playing:false,anchor:Date.now(),ownerId:'profile-two',members:[{profileId:profile.id,status:'invited',profile},{profileId:'profile-two',status:'joined',profile:{name:'Friend'}}]}];
  await act(async()=>{FakeSocket.latest.onmessage({data:JSON.stringify({type:'snapshot',profiles:[profile],parties,sources:['vidfast'],online:[]})});location.hash='/together';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.party-card'));
  const join=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Join party'));assert.equal(join.disabled,false);
- await act(async()=>join.click());await wait(()=>document.querySelector('[aria-label="Join this party on web?"]'));
- await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Switch source & join')).click());await wait(()=>document.querySelector('.player-page'));
- assert.ok(requests.some(r=>r.body?.action==='join'&&r.body.source==='vidfast'));
- const frame=document.querySelector('.video-stage iframe'),playerCommands=[];frame.contentWindow.postMessage=(...v)=>playerCommands.push(v);
- const playerEvent=patch=>window.dispatchEvent(new window.MessageEvent('message',{source:frame.contentWindow,origin:'https://vidfast.vc',data:{type:'PLAYER_EVENT',data:{event:'playerstatus',currentTime:42,duration:7200,playing:false,tmdbId:550,mediaType:'movie',...patch}}}));
+ await act(async()=>join.click());
+ if(!native){await wait(()=>document.querySelector('[aria-label="Join this party on web?"]'));await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Switch source & join')).click());}
+ await wait(()=>document.querySelector('.player-page'));
+ assert.ok(requests.some(r=>r.body?.action==='join'&&(native?!r.body.source:r.body.source==='vidfast')));
+ const nativeID=nativeOpens.at(-1)?.session,frame=document.querySelector('.video-stage iframe'),playerCommands=[];if(frame)frame.contentWindow.postMessage=(...v)=>playerCommands.push(v);
+ if(native){assert.equal(frame,null);assert.equal(nativeOpens.at(-1).source,'movish');}
+ const playerEvent=patch=>native?[...nativeEvents].forEach(cb=>cb({session:nativeID,kind:'status',data:{event:'playerstatus',position:patch.currentTime??42,duration:7200,playing:patch.playing??false,playable:true,controllable:true}})):window.dispatchEvent(new window.MessageEvent('message',{source:frame.contentWindow,origin:'https://vidfast.vc',data:{type:'PLAYER_EVENT',data:{event:'playerstatus',currentTime:42,duration:7200,playing:false,tmdbId:550,mediaType:'movie',...patch}}}));
  parties[0]={...parties[0],playing:true,duration:7200,anchor:Date.now()-60000};
  await act(async()=>{FakeSocket.latest.onmessage({data:JSON.stringify({type:'snapshot',profiles:[profile],parties,sources:['vidfast','vidcore'],online:[]})})});
  assert.equal(document.querySelector('.timeline input').value,'0','room clock must not masquerade as local video');
@@ -63,8 +67,8 @@ test('web flow connects from the build variable without an access-code screen, s
  await act(async()=>playerEvent({}));assert.equal(document.querySelector('.timeline input').value,'42');
  assert.equal(document.querySelector('[aria-label="Play"]').disabled,true,'metadata is insufficient readiness');
  assert.equal([...document.querySelectorAll('button')].some(b=>b.textContent.includes('Start video on this browser')),false);
- assert.equal(new URL(frame.src).searchParams.get('autoPlay'),'true');
- assert.equal(playerCommands.at(-1)[0].command,'play');assert.equal(playerCommands.at(-1)[1],'https://vidfast.vc');
+ if(frame)assert.equal(new URL(frame.src).searchParams.get('autoPlay'),'true');
+ if(native)assert.equal(nativeCommands.at(-1).command,'play');else{assert.equal(playerCommands.at(-1)[0].command,'play');assert.equal(playerCommands.at(-1)[1],'https://vidfast.vc');}
  assert.equal(requests.filter(r=>r.body?.action==='play').length,partyPlaysBefore,'unlock does not start everyone');
  assert.equal(liveMessages.filter(m=>m.type==='status').at(-1).ready,false);
  // A frozen provider returns status but ignores play; after the startup deadline
@@ -73,14 +77,14 @@ test('web flow connects from the build variable without an access-code screen, s
  try{await act(async()=>{await new Promise(resolve=>setTimeout(resolve,1100))});assert.ok(document.querySelector('.playback-help'))}finally{Date.now=realDateNow}
  assert.match(document.querySelector('.playback-help').textContent,/playback did not advance/);
  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Reload player').click());
- assert.notEqual(document.querySelector('.video-stage iframe'),frame,'reload mounts a new source window');
+ if(native)assert.notEqual(nativeOpens.at(-1).session,nativeID,'reload creates a fresh native session');else assert.notEqual(document.querySelector('.video-stage iframe'),frame,'reload mounts a new source window');
  await act(async()=>playerEvent({playing:true,currentTime:500}));
  assert.equal(document.querySelector('.timeline input').value,'0','old iframe messages are ignored after reload');
  assert.equal(liveMessages.filter(m=>m.type==='status').at(-1).ready,false);
  await act(async()=>{const select=document.querySelector('[aria-label="Party source"]');select.value='vidcore';select.dispatchEvent(new window.Event('change',{bubbles:true}))});
  assert.ok(document.querySelector('[aria-label="Change the party source?"]'));
  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Switch source for everyone').click());
- await wait(()=>document.querySelector('.video-stage iframe')?.src.includes('vidcore.io'));
+ await wait(()=>native?nativeOpens.at(-1)?.source==='vidcore':document.querySelector('.video-stage iframe')?.src.includes('vidcore.io'));
  assert.ok(requests.some(r=>r.body?.action==='join'&&r.body.source==='vidcore'));
 
  await act(async()=>{location.hash='/search';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.search-page input'));

@@ -78,7 +78,7 @@ export class PartySync {
   if(moved)this.lastMove=now;
   if(!this.ready) {
    if(this.primed) {
-    if(this.protocol&&data.duration>0&&data.playing===false&&Math.abs(data.position-expectedPosition(this.party,now))<=1.5) {
+    if(this.protocol&&data.duration>0&&data.playable!==false&&data.playing===false&&Math.abs(data.position-expectedPosition(this.party,now))<=1.5) {
      this.ready=true;this.phase='ready';this.lastDesired=null;this.report(true,true);
     }
    } else {

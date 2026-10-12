@@ -1,0 +1,60 @@
+name: Build ANY Windows installer
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'app/src/playback.js', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: desktop
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - name: Use the same Together protocol as the web app
+        run: Copy-Item ../app/src/playback.js lib/party-sync.mjs -Force
+      - run: npm test
+      - name: Test two real native video players
+        run: npm run test:electron
+      - name: Build the Windows installer
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Install and test the packaged application
+        run: |
+          $installer = (Get-ChildItem release/ANY-Setup-*.exe | Select-Object -First 1).FullName
+          $destination = Join-Path $env:RUNNER_TEMP 'ANY-installed-test'
+          $install = Start-Process -FilePath $installer -ArgumentList "/S /D=$destination" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
+          $executable = Join-Path $destination 'ANY.exe'
+          if (!(Test-Path $executable)) { throw 'Installed executable missing' }
+          $report = Join-Path $env:TEMP 'ANY-desktop-test-result.json'
+          Remove-Item $report -ErrorAction SilentlyContinue
+          $test = Start-Process -FilePath $executable -ArgumentList '--self-test' -Wait -PassThru
+          if ($test.ExitCode -ne 0) { throw "Installed application test failed: $($test.ExitCode)" }
+          if (!(Test-Path $report)) { throw 'Installed application produced no test report' }
+          $result = Get-Content $report -Raw | ConvertFrom-Json
+          if (!$result.passed) { throw 'Installed application checks failed' }
+          Copy-Item $report release/native-test-result.json
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower()
+          "$hash  $([IO.Path]::GetFileName($installer))" | Out-File release/SHA256SUMS.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANY-Windows-Installer
+          path: |
+            desktop/release/ANY-Setup-*.exe
+            desktop/release/SHA256SUMS.txt
+            desktop/release/native-test-result.json
+          retention-days: 90
+          if-no-files-found: error

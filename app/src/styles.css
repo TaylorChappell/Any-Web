@@ -11,3 +11,8 @@
 .manual-trailer{aspect-ratio:16/9;position:relative;background:#000}.manual-trailer .trailer-video{opacity:1}.trailer.interactive{pointer-events:auto}.trailer-message{position:absolute;inset:40% 15%;text-align:center;color:#ddd}
 
 .party-start{display:flex;align-items:center;gap:20px;justify-content:space-between;padding:12px 0}.party-start p{margin:0;color:#ddd;max-width:760px}.party-start .button{flex-shrink:0}@media(max-width:680px){.party-start{align-items:stretch;flex-direction:column;gap:10px}}
+
+/* Native video occupies its own bounded view, leaving ANY controls clickable. */
+.desktop-player .video-stage{min-height:160px}
+.native-player-placeholder{position:absolute;inset:0;display:flex;gap:12px;align-items:center;justify-content:center;color:#aaa;font-size:13px}
+.desktop-player .player-controls{max-height:48vh;overflow-y:auto}

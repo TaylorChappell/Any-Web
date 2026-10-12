@@ -1,3 +1,11 @@
+## ANY Desktop — 0.3.0
+
+`desktop/` in the Any-Web repository builds the Windows x64 installer. It loads
+this frontend and adds an isolated native source view. Desktop Together supports
+Movish directly and uses the existing profiles, progress and party backend.
+Desktop-created parties prefer Movish; browsers retain their API-based player.
+See `desktop/README.md` in the repository for build and runtime details.
+
 # ANY Web
 
 A responsive ANY frontend for GitHub Pages, connected to the existing Railway

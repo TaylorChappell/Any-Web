@@ -1,3 +1,16 @@
+# Desktop 0.3.0 / Interface 0.3.0 / Backend 0.2.6
+
+- 28 frontend tests pass, including both browser and desktop joins, native Movish
+  playback without an iframe, automatic startup, fresh sessions after reload,
+  stale event rejection, source switching and normal catalogue operations.
+- 5 desktop policy tests cover the owned origin, source/title allowlists, command
+  validation, bounded native views and source telemetry validation.
+- 23 backend tests pass, including two-client WebSocket synchronization and
+  switching an existing party back to the native Movish source.
+- Windows CI must pass real-media native integration, installer build and the
+  installed executable self-test before distributing the installer. These tests
+  use a locally generated clip, not a live film source or a physical Sony TV.
+
 # Web 0.2.7 — 12 October 2026
 
 - Joining automatically requests provider autoplay and sends play on mount/load and after the validated control handshake. Dropped play commands are retried for a bounded period. There is no mandatory local startup button.
