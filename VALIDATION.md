@@ -1,3 +1,9 @@
+# Web 0.2.6 — 12 October 2026
+
+- Replaced the sun-like Settings glyph with a six-tooth cog and central circular hole.
+- Renamed Watch Together to Together in navigation, pages, player labels, help text and accessibility labels.
+- Production build succeeds. Existing playback and route behavior are unchanged.
+
 # Validation — 12 October 2026 · Web 0.2.5 / Backend 0.2.3
 
 - 23 web tests pass, including origin/frame/title/episode validation, real-position UI, initial activation without room Play, advancing playback plus pause acknowledgement, startup alignment, ignored play/pause commands, stale telemetry, disconnects and iframe reload isolation.
