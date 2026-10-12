@@ -1,21 +1,14 @@
-# Validation — 12 October 2026 · Web 0.2.4
+# Validation — 12 October 2026 · Web 0.2.5 / Backend 0.2.3
 
-- Production Vite build succeeds using the existing ANY frontend token. The token is public only in the compiled deployment; editable source, tests and workflow contain no real credential.
-- All 15 frontend tests pass, including the title trailer dialog, three-page category deduplication, MCU season/release filtering, enabling older TV invitations, explicit group source-switch confirmation and normal party-player navigation.
-- Backend: all 19 tests pass, including MCU authentication and bounded metadata loading, real two-client WebSocket commands, source changes retaining episode/position/membership, stale epoch rejection, shared persistence and APK publishing.
-- Android companion: all 70 host tests pass and the optimized release builds. Native franchise focus was rendered at TV dimensions and inspected.
-- Existing root-file GitHub Pages hosting is preserved. Editable web source is in app/. The workflow builds from the repository variable ANY_API_TOKEN. The current compiled site does not require visitors to enter an access code.
+- 23 web tests pass, including origin/frame/title/episode validation, real-position UI, initial activation without room Play, advancing playback plus pause acknowledgement, startup alignment, ignored play/pause commands, stale telemetry, disconnects and iframe reload isolation.
+- The React integration test exercises TV-party joining, the local startup button, failure recovery, fresh iframe creation, rejection of old-window messages and a confirmed whole-party source change.
+- 21 backend tests pass, including a real two-client WebSocket test, late join while playing, loss of readiness without a buffering event, explicit Pause cancelling automatic recovery, source change preservation and stale epoch rejection.
+- Production Vite build uses the existing frontend repository variable. No new backend variables or APK are required.
 
-- GitHub Pages workflow 38268882632 completed successfully using the existing repository variable. The live site at https://taylorchappell.github.io/Any-Web/ serves the exact locally built JavaScript (index-BUXpEqMc.js). Automatic connection displayed the existing shared profiles without a code-entry prompt.
+## Live provider limitation
 
-- Live browsing caught a collection-list/detail state reuse bug. Collection routes now remount on identity changes; the DOM regression covers list → MCU → list → regular collection navigation.
-
-## Limits
-
-UI/protocol tests use mocked provider events. Actual third-party video decoding, browser autoplay and synchronized playback between a real TV and browser still need a device check. Source 6 has no integrated browser control API, so an older Source 6 invitation asks to switch the group to VidFast or VidCore before joining. A player is ready only after validated live telemetry, never merely because its iframe loaded.
-
-MCU membership is curated; TMDB provides release dates, seasons, descriptions and images. Future or undated entries are hidden. Dates describe metadata, not streaming availability. Earlier connected Marvel series have a separate filter and are not presented as a definitive canon classification.
+In the cloud browser, VidFast remained at “FETCHING, ONE MOMENT...” after one reload, and VidCore remained at “FETCHING YOUR CONTENT...”. Neither reached a playable video in this test. These observations do not establish an outage for other browsers or networks. Tests validate ANY's protocol and UI against controlled provider events, not third-party video decoding. Real TV-to-browser playback still requires a device check with a source that loads.
 
 ## Device check
 
-Open the website, select a profile and inspect Collections → MCU. Open a season and check the selected season. Use the trailer icon on a title. Invite another profile, join from TV/browser, allow playback if the browser asks, then check pause, seek and an episode change.
+Refresh the website to version 0.2.5, join with a different profile from the TV, and start the web video once. If needed click Play inside the source. The startup check should return the video to the paused party position. Play on TV; confirm both real videos move, then check pause, seek and episode change. A blank or blocked browser player must keep the party waiting and expose Reload player / Party source.

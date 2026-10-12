@@ -195,3 +195,23 @@ Franchise focus has a red frame, white outline and visible selection badge.
 The trailer icon on title details opens a large YouTube player immediately. Hover
 previews begin after three seconds. Browser autoplay restrictions may still require
 a click before audio starts.
+
+## Watch Together startup (0.2.5)
+
+Join the party, then choose **Start video on this browser**. Some providers or
+browsers require clicking Play inside the embedded video itself. ANY verifies
+actual advancing playback and an acknowledged pause at the room position before
+reporting readiness. This short local startup check never sends a group Play.
+
+Late joins, reloads and lost readiness pause the party. Once every joined player
+is ready, a pending Play resumes at a shared future anchor; an explicit Pause
+cancels that pending resume. The web timeline reports actual provider positions,
+not the server's estimated clock. A blocked play remains unready until recovered.
+
+**Party source** can switch everyone between enabled VidFast and VidCore sources,
+with confirmation. The backend preserves the party, title, episode and position
+while reloading all players. Reload player creates a fresh iframe and readiness
+handshake. Other sources still support solo playback, but do not expose the
+required documented browser control protocol. No cross-origin script injection
+or source-stream proxy is used. Source availability and browser autoplay policy
+remain external dependencies; a party connection alone cannot guarantee video.

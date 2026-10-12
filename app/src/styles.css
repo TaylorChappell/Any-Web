@@ -9,3 +9,5 @@
 .collection-order{display:flex;gap:10px;margin:12px 0 22px;font-size:13px;line-height:1.4}.collection-order>strong{color:#e50914;font-size:24px}.collection-order small{display:block;color:#aaa;margin-top:4px}
 .collection-filters{display:flex;flex-wrap:wrap;gap:10px;margin:24px 0 30px}
 .manual-trailer{aspect-ratio:16/9;position:relative;background:#000}.manual-trailer .trailer-video{opacity:1}.trailer.interactive{pointer-events:auto}.trailer-message{position:absolute;inset:40% 15%;text-align:center;color:#ddd}
+
+.party-start{display:flex;align-items:center;gap:20px;justify-content:space-between;padding:12px 0}.party-start p{margin:0;color:#ddd;max-width:760px}.party-start .button{flex-shrink:0}@media(max-width:680px){.party-start{align-items:stretch;flex-direction:column;gap:10px}}
