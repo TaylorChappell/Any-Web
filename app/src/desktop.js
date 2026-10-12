@@ -1,6 +1,6 @@
 // Only the installed app provides this narrow, context-isolated bridge.
 export function desktopBridge(){const b=globalThis.window?.anyDesktop;return b?.protocolVersion===1&&['openPlayer','closePlayer','playerCommand','setPlayerBounds','onPlayerEvent','onPlayerKey','fullscreen'].every(k=>typeof b[k]==='function')?b:null;}
-export const desktopPartySource=sources=>['movish','vidfast','vidcore'].find(id=>sources.includes(id));
+export const desktopPartySource=sources=>sources.includes('movish')?'movish':undefined;
 export const desktopPartySupported=id=>['movish','vidfast','vidcore'].includes(id);
 export function nativePlayerEvent(message,session){
  if(message?.session!==session||message.kind!=='status')return null;const d=message.data;

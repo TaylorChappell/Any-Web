@@ -12,6 +12,7 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,location:dom.window.location,EventTarget:dom.window.EventTarget,Event:dom.window.Event,CustomEvent:dom.window.CustomEvent,IS_REACT_ACT_ENVIRONMENT:true,matchMedia:()=>({matches:false})});window.scrollTo=()=>{};
  const nativeCommands=[],nativeOpens=[],nativeEvents=new Set(),nativeKeys=new Set();
  if(native){globalThis.ResizeObserver=class{observe(){}disconnect(){}};window.anyDesktop={protocolVersion:1,version:'0.3.0',openPlayer:async input=>{nativeOpens.push(input);return {session:input.session}},closePlayer:async()=>{},playerCommand:async input=>{nativeCommands.push(input);return true},setPlayerBounds:async()=>true,fullscreen:async()=>true,onPlayerEvent:cb=>{nativeEvents.add(cb);return()=>nativeEvents.delete(cb)},onPlayerKey:cb=>{nativeKeys.add(cb);return()=>nativeKeys.delete(cb)}};}
+ if(native){const updates=new Set();let updateState={status:'idle',currentVersion:'0.3.1'};const change=s=>{updateState={...updateState,...s};updates.forEach(cb=>cb(updateState));return updateState};Object.assign(window.anyDesktop,{updateStatus:async()=>updateState,onUpdate:cb=>{updates.add(cb);return()=>updates.delete(cb)},checkForUpdates:async()=>change({status:'available',version:'0.3.2'}),downloadUpdate:async()=>change({status:'downloaded'}),installUpdate:async()=>change({status:'installing'})});}
  const liveMessages=[],requests=[],profile={id:'profile-one',name:'Taylor',avatar:0},library={saved:[],progress:[],feedback:[]};let selected=false,parties=[];
  const film={id:550,title:'Test Film',media_type:'movie',overview:'A test description.',poster_path:'/poster.jpg',backdrop_path:'/backdrop.jpg',release_date:'2025-01-01',vote_average:8.2,runtime:120,genres:[{id:18,name:'Drama'}],recommendations:{results:[]},videos:{results:[]},credits:{cast:[]}};
  globalThis.fetch=async(url,init={})=>{const u=new URL(url),body=init.body?JSON.parse(init.body):null;requests.push({path:u.pathname,headers:init.headers,body});let data={};
@@ -87,6 +88,13 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  await wait(()=>native?nativeOpens.at(-1)?.source==='vidcore':document.querySelector('.video-stage iframe')?.src.includes('vidcore.io'));
  assert.ok(requests.some(r=>r.body?.action==='join'&&r.body.source==='vidcore'));
 
+ if(native){
+  await act(async()=>{location.hash='/settings';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.settings-page'));
+  const button=label=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===label);
+  await act(async()=>button('Check for updates').click());await wait(()=>button('Download update'));
+  await act(async()=>button('Download update').click());await wait(()=>button('Restart and install'));
+  await act(async()=>button('Restart and install').click());assert.ok(document.body.textContent.includes('Restarting to install'));
+ }
  await act(async()=>{location.hash='/search';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.search-page input'));
  const search=document.querySelector('.search-page input');await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(search,'Test');search.dispatchEvent(new window.Event('input',{bubbles:true}));search.dispatchEvent(new window.Event('change',{bubbles:true}))});
  await act(async()=>document.querySelector('.search-page form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));await wait(()=>document.querySelector('.search-page .poster-grid'));assert.notEqual(document.activeElement,search);

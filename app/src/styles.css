@@ -16,3 +16,5 @@
 .desktop-player .video-stage{min-height:160px}
 .native-player-placeholder{position:absolute;inset:0;display:flex;gap:12px;align-items:center;justify-content:center;color:#aaa;font-size:13px}
 .desktop-player .player-controls{max-height:48vh;overflow-y:auto}
+
+.desktop-update-notice{position:fixed;bottom:24px;right:24px;z-index:200;display:flex;align-items:center;gap:16px;padding:16px 20px;background:#202024;border:1px solid #555;border-radius:12px;box-shadow:0 8px 40px #0009}.update-progress{width:min(440px,100%);margin-top:18px;accent-color:#e50914}

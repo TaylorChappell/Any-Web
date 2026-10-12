@@ -1,7 +1,7 @@
 {
   "name": "any-desktop",
   "productName": "ANY",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "ANY for Windows with native video controls and Together",
   "author": "Taylor Chappell",
   "private": true,
@@ -30,7 +30,8 @@
       "lib/**",
       "test/electron-smoke.cjs",
       "test/fixture.webm",
-      "package.json"
+      "package.json",
+      "test/update-smoke.cjs"
     ],
     "win": {
       "target": [
@@ -53,6 +54,17 @@
       "deleteAppDataOnUninstall": false,
       "artifactName": "ANY-Setup-${version}.${ext}",
       "runAfterFinish": false
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "TaylorChappell",
+        "repo": "Any-Web",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
   }
 }
