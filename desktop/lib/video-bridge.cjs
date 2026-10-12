@@ -6,6 +6,39 @@ function installVideoBridge(config){
  if(globalThis.__ANY_NATIVE_PLAYER__?.session===config.session)return true;
  let video=null,restored=false,episodeChanged=false,pending=[],lastProgress=0,error=null;
  const bound=new WeakSet();
+ const layout=new Map();let layoutVideo=null,layoutParent=null;
+ function style(node,values){
+  if(!node?.style)return;
+  let saved=layout.get(node);if(!saved){saved=new Map();layout.set(node,saved);}
+  for(const [key,value] of Object.entries(values)){
+   if(!saved.has(key))saved.set(key,{value:node.style.getPropertyValue(key),priority:node.style.getPropertyPriority(key)});
+   node.style.setProperty(key,value,'important');saved.get(key).ours=node.style.getPropertyValue(key);
+  }
+ }
+ function clearLayout(){
+  for(const [node,properties]of layout)for(const [key,old]of properties)if(node.style.getPropertyValue(key)===old.ours){if(old.value)node.style.setProperty(key,old.value,old.priority);else node.style.removeProperty(key);}
+  layout.clear();layoutVideo=null;layoutParent=null;
+ }
+ function fitVideo(v){
+  // Wait for actual media so provider loading, source-choice and error screens
+  // remain usable. Resize the existing player; never move/recreate the video.
+  if(v.readyState<1||!Number.isFinite(v.duration)||v.duration<=0)return;
+  if(layoutVideo===v&&layoutParent===v.parentElement){for(const [node,properties]of layout)for(const [key,saved]of properties)if(node.style.getPropertyValue(key)!==saved.ours||node.style.getPropertyPriority(key)!=='important')node.style.setProperty(key,saved.ours,'important');return;}
+  clearLayout();layoutVideo=v;layoutParent=v.parentElement;
+  const viewport={position:'fixed',top:'0px',right:'0px',bottom:'0px',left:'0px',width:'100vw',height:'100vh','min-width':'0px','min-height':'0px','max-width':'none','max-height':'none',margin:'0px',padding:'0px',border:'0px','box-sizing':'border-box','aspect-ratio':'auto',transform:'none'};
+  const reset={transform:'none',filter:'none',perspective:'none',contain:'none','content-visibility':'visible','clip-path':'none',overflow:'visible'};
+  const doc=v.ownerDocument,container=v.closest('#mv-player,.video-js,.jwplayer,.plyr')||v.parentElement;
+  for(let node=container;node;node=node.parentElement)style(node,reset);
+  style(doc.documentElement,{margin:'0px',padding:'0px',width:'100%',height:'100%',overflow:'hidden',background:'#000'});
+  style(doc.body,{margin:'0px',padding:'0px',width:'100%',height:'100%',overflow:'hidden',background:'#000'});
+  style(container,{...viewport,'z-index':'2147483000',background:'#000'});
+  for(let node=v.parentElement;node&&node!==container;node=node.parentElement)style(node,{...reset,position:'static','aspect-ratio':'auto','max-width':'none','max-height':'none',padding:'0px'});
+  style(v,{...viewport,position:'absolute',width:'100%',height:'100%','object-fit':'contain','object-position':'50% 50%',background:'#000'});
+  // The bridge only inspects same-origin child documents. Expand their frames
+  // too, otherwise an inner full-size video can still sit in a small iframe.
+  let child=doc.defaultView;
+  while(child&&child!==window){let frame;try{frame=child.frameElement}catch{break}if(!frame)break;for(let node=frame.parentElement;node;node=node.parentElement)style(node,reset);style(frame,{...viewport,'z-index':'2147483000'});child=frame.ownerDocument.defaultView;}
+ }
  function docs(root,depth=0){const list=[root];if(depth<3)for(const frame of root.querySelectorAll('iframe')){try{if(frame.contentDocument)list.push(...docs(frame.contentDocument,depth+1))}catch{}}return list;}
  function snapshot(event='playerstatus'){
   const v=video,duration=v&&Number.isFinite(v.duration)&&v.duration>0?v.duration:0,position=v&&Number.isFinite(v.currentTime)?Math.max(0,Math.min(v.currentTime,duration)):0;
@@ -19,7 +52,7 @@ function installVideoBridge(config){
  function bind(){
   const all=docs(document),area=v=>{const r=v.getBoundingClientRect();return r.width*r.height;};
   const next=all.map(d=>d.querySelector('#mv-player video')).find(Boolean)||all.flatMap(d=>Array.from(d.querySelectorAll('video'))).filter(v=>area(v)>=14400).sort((a,b)=>area(b)-area(a))[0];
-  if(!next){if(video&&!video.isConnected){video=null;restored=false;}return;}
+  if(!next){if(video&&!video.isConnected){video=null;restored=false;clearLayout();}return;}
   if(next!==video){video=next;restored=false;error=null;}
   if(!bound.has(next)){
    bound.add(next);if(config.party)next.pause();
@@ -27,7 +60,7 @@ function installVideoBridge(config){
    for(const name of ['loadedmetadata','canplay'])next.addEventListener(name,()=>restore(next));
    next.addEventListener('error',()=>{if(next===video)error='media-error';});
   }
-  restore(next);
+  restore(next);fitVideo(next);
  }
  window.addEventListener('message',event=>{
   if(config.source!=='movish'||event.source!==window||event.origin!==location.origin)return;

@@ -1,6 +1,6 @@
-# ANY Desktop 0.3.1
+# ANY Desktop 0.3.2
 
-Windows x64 app, installed per user by `ANY-Setup-0.3.1.exe`. It creates desktop
+Windows x64 app, installed per user by `ANY-Setup-0.3.2.exe`. It creates desktop
 and Start menu shortcuts and does not require a separate browser or WebView2
 installation. The installer includes Electron/Chromium. Internet is required.
 
@@ -22,7 +22,7 @@ episode closes the old view, invalidates its session and verifies readiness anew
 The app proves advancing playback and acknowledged pause before marking a player
 ready. Keyboard shortcuts: Space/Enter play-pause, arrows left/right skip 10s,
 Escape closes the episode chooser or leaves playback, F11 fullscreen. ANY's
-controls remain visible and clickable below the native view. Modal dialogs hide
+controls automatically hide after three idle seconds during active playback. The title bar and controls then give their entire area to the video, in windowed and fullscreen modes. Mouse movement or Up/Down restores controls; pausing, loading, errors and dialogs keep them visible. Source player containers and same-origin frame wrappers are resized around the existing video with object-fit: contain, preserving aspect ratio, subtitles and playback state. Native bounds follow window resize/fullscreen events without waiting for a renderer measurement. Modal dialogs hide
 the native view until closed, without changing the party or episode.
 
 Source pages have no Node integration, no preload or desktop IPC, no downloads,

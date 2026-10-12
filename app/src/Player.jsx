@@ -16,6 +16,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
  const [selectedSeason,setSelectedSeason]=useState(season),[ready,setReady]=useState(false),[waited,setWaited]=useState(false);
  const [loadFailed,setLoadFailed]=useState(false),[confirmed,setConfirmed]=useState(false),[switching,setSwitching]=useState(''),[busy,setBusy]=useState(false);
  const [local,setLocal]=useState({phase:'loading',ready:false,playing:false});
+ const nativeAutoHide=desktop?.playbackLayoutVersion===1,idleTimer=useRef(),revealControls=useRef(()=>{}),pointerOnControls=useRef(false);
  partyRef.current=party;
  const src=sourceById(source),url=useRef(playerUrl(source,title,season,episode,position,!!party));
  const save=()=>{const data=lastProgress.current;if(!data)return;lastProgress.current=null;api.change('progress',data.key,data).catch(e=>onError(e.message))};
@@ -58,7 +59,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
    }
   };
   const receive=event=>receiveData(parsePlayerEvent(event,iframe.current?.contentWindow,source,title,season,episode));
-  const unsubscribe=desktop?.onPlayerEvent(message=>{if(message.session!==nativeSession.current)return;if(message.kind==='error'){setLoadFailed(true);sync.current?.block();if(sync.current)setLocal(sync.current.view());onError(message.message);return;}receiveData(nativePlayerEvent(message,nativeSession.current));});
+  const unsubscribe=desktop?.onPlayerEvent(message=>{if(message.session!==nativeSession.current)return;if(message.kind==='pointer'){pointerOnControls.current=false;revealControls.current();return;}if(message.kind==='error'){setLoadFailed(true);sync.current?.block();if(sync.current)setLocal(sync.current.view());onError(message.message);return;}receiveData(nativePlayerEvent(message,nativeSession.current));});
   if(!desktop)window.addEventListener('message',receive);
   if(desktop)desktop.openPlayer({session:nativeSession.current,source,type:title.media_type,id:title.id,season,episode,position,party:!!party}).then(()=>{window.dispatchEvent(new Event('resize'));sendPlayer('getStatus');}).catch(error=>{setLoadFailed(true);onError(error.message);});
   const tick=()=>{
@@ -73,26 +74,36 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
   const key=e=>{
    if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;
    if(e.key==='Escape'){e.preventDefault();if(episodes)setEpisodes(false);else if(!desktop&&controls)setControls(false);else go(`/${title.media_type}/${title.id}`)}
-   else if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();setControls(true)}
+   else if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();revealControls.current();setControls(true)}
+   else if(e.key==='Tab'&&e.fromPlayer){e.preventDefault();revealControls.current();setControls(true);requestAnimationFrame(()=>root.current?.querySelector('.player-top button')?.focus())}
    else if((e.key===' '||e.key==='Enter')&&e.target.tagName!=='BUTTON'){
     e.preventDefault();if(partyRef.current&&!sync.current?.ready)activate();
     else if(protocol.current)command(statsRef.current.playing?'pause':'play');
    }else if(protocol.current&&(!partyRef.current||sync.current?.ready)&&['ArrowLeft','ArrowRight'].includes(e.key)&&e.target.tagName!=='BUTTON'){
+    revealControls.current();
     e.preventDefault();command('skip',{delta:e.key==='ArrowLeft'?-10:10});
    }
-  };window.addEventListener('keydown',key);const off=desktop?.onPlayerKey(message=>{if(message.session===nativeSession.current)key({key:message.key,target:root.current,preventDefault:()=>{}});});return()=>{off?.();window.removeEventListener('keydown',key);};
+  };window.addEventListener('keydown',key);const off=desktop?.onPlayerKey(message=>{if(message.session===nativeSession.current)key({key:message.key,target:root.current,fromPlayer:true,preventDefault:()=>{}});});return()=>{off?.();window.removeEventListener('keydown',key);};
  },[controls,episodes]);
- useEffect(()=>{
-  if(!desktop||!stage.current)return;
-  const resize=()=>{const r=stage.current.getBoundingClientRect();desktop.setPlayerBounds({session:nativeSession.current,x:r.x,y:r.y,width:r.width,height:r.height,visible:!episodes&&!switching&&!confirmed&&!document.hidden}).catch(()=>{});};
-  const observer=new ResizeObserver(resize);observer.observe(stage.current);resize();
-  window.addEventListener('resize',resize);document.addEventListener('visibilitychange',resize);window.addEventListener('scroll',resize,true);
-  return()=>{observer.disconnect();window.removeEventListener('resize',resize);document.removeEventListener('visibilitychange',resize);window.removeEventListener('scroll',resize,true);};
- },[episodes,switching,confirmed]);
  const playing=party?local.playing:stats.playing,positionNow=stats.position;
  const member=party?.members.find(m=>m.profileId===api.profile);
  const canControl=stats.duration>0&&protocol.current&&(!party||(local.ready&&member?.ready))&&api.status==='Connected';
  const waiting=party&&(!local.ready||!member?.ready),showHelp=loadFailed||(waited&&(!ready||waiting))||local.phase==='blocked';
+ const showChrome=desktop?(!nativeAutoHide||controls||!playing||waiting||showHelp||episodes||switching||confirmed):(controls||waiting);
+ useEffect(()=>{
+  if(!nativeAutoHide)return;
+  const hide=()=>{if(pointerOnControls.current||root.current?.querySelector('.player-controls :focus-visible,.player-top :focus-visible'))return;root.current?.focus({preventScroll:true});setControls(false)};
+  const activity=()=>{setControls(true);clearTimeout(idleTimer.current);if(playing&&!waiting&&!showHelp&&!episodes&&!switching&&!confirmed)idleTimer.current=setTimeout(hide,3000)};
+  revealControls.current=activity;activity();
+  return()=>{clearTimeout(idleTimer.current);revealControls.current=()=>{}};
+ },[nativeAutoHide,playing,!!waiting,showHelp,episodes,switching,confirmed]);
+ useEffect(()=>{
+  if(!desktop||!stage.current)return;
+  const resize=()=>{const r=stage.current.getBoundingClientRect();desktop.setPlayerBounds({session:nativeSession.current,x:r.x,y:r.y,width:r.width,height:r.height,fillWindow:nativeAutoHide&&!showChrome,visible:!episodes&&!switching&&!confirmed&&!document.hidden}).catch(()=>{});};
+  const observer=new ResizeObserver(resize);observer.observe(stage.current);resize();
+  window.addEventListener('resize',resize);document.addEventListener('visibilitychange',resize);window.addEventListener('scroll',resize,true);
+  return()=>{observer.disconnect();window.removeEventListener('resize',resize);document.removeEventListener('visibilitychange',resize);window.removeEventListener('scroll',resize,true);};
+ },[episodes,switching,confirmed,!!showChrome,nativeAutoHide]);
  const failureText=loadFailed?`${src.name} could not load its player.`:
   local.failure==='no-response'?`${src.name} has not returned a player connection. Reload or choose another party source.`:
   local.failure==='no-media'?`${src.name} connected, but has not loaded a video for this title. Try another party source.`:
@@ -108,10 +119,10 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
   local.phase==='starting'?'Starting the video automatically…':
   local.ready?'Video ready. Waiting for the party…':`Connecting to ${src.name}… The video will start automatically.`;
  async function playEpisode(s,e){if(party)await command('episode',{season:s,episode:e});else go(watchLink(title,{season:s,episode:e,source}));setEpisodes(false)}
- return <main className={"player-page"+(desktop?" desktop-player":"")} ref={root} tabIndex={0}>
-  <div className="player-top"><Button icon="left" aria-label="Leave player" onClick={()=>go(`/${title.media_type}/${title.id}`)}/><div><h1>{title.title}</h1><span>{title.media_type==='tv'?`Season ${season} · Episode ${episode} · `:''}{party?'Together · ':''}{`Source ${SOURCES.indexOf(src)+1} · ${src.name}`}</span></div><Button icon="expand" aria-label="Fullscreen" onClick={()=>{if(desktop){desktop.fullscreen().catch(()=>onError('Fullscreen is unavailable.'));return;}if(document.fullscreenElement)document.exitFullscreen?.();else root.current?.requestFullscreen?.().catch(()=>onError('Fullscreen is unavailable in this browser.'))}}/></div>
+ return <main className={"player-page"+(desktop?" desktop-player":"")+(desktop&&!showChrome?' cinema-mode':'')} ref={root} tabIndex={0} onPointerMove={e=>{if(nativeAutoHide){pointerOnControls.current=!!e.target.closest('.player-controls,.player-top');revealControls.current()}}}>
+  {(!desktop||showChrome)&&<div className="player-top"><Button icon="left" aria-label="Leave player" onClick={()=>go(`/${title.media_type}/${title.id}`)}/><div><h1>{title.title}</h1><span>{title.media_type==='tv'?`Season ${season} · Episode ${episode} · `:''}{party?'Together · ':''}{`Source ${SOURCES.indexOf(src)+1} · ${src.name}`}</span></div><Button icon="expand" aria-label="Fullscreen" onClick={()=>{if(desktop){desktop.fullscreen().then(()=>{if(nativeAutoHide&&playing)setControls(false)}).catch(()=>onError('Fullscreen is unavailable.'));return;}if(document.fullscreenElement)document.exitFullscreen?.();else root.current?.requestFullscreen?.().catch(()=>onError('Fullscreen is unavailable in this browser.'))}}/></div>}
   <div className="video-stage" ref={stage}>{desktop?<div className="native-player-placeholder"><Spinner/><span>Loading {src.name}…</span></div>:<iframe ref={iframe} src={url.current} title={`${title.title} player`} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen onLoad={frameLoaded} onError={()=>setLoadFailed(true)}/>}</div>
-  {(controls||waiting)&&<div className="player-controls">
+  {showChrome&&<div className="player-controls">
    {party&&!party.playing&&<div className="party-presence">{party.members.filter(m=>m.status==='joined').map(m=><div key={m.profileId}><Avatar id={m.profile?.avatar} size={38}/><span>{m.profile?.name}<small>{m.error||(!m.connected?'Reconnecting':m.ready?m.buffering?'Buffering':'Ready':'Waiting for video')}</small></span></div>)}</div>}
    {waiting&&<div className="party-start" role="status"><p>{waitingText}</p>{local.phase==='blocked'&&local.failure==='start-failed'&&<Button tone="red" icon="play" disabled={api.status!=='Connected'} onClick={activate}>Retry playback</Button>}</div>}
    <div className="timeline"><span>{clock(positionNow)}</span><input aria-label="Playback position" type="range" min="0" max={stats.duration||1} step="1" value={Math.min(positionNow,stats.duration||1)} disabled={!canControl} onChange={e=>command('seek',{position:Number(e.target.value)})}/><span>{clock(stats.duration)}</span></div>
@@ -121,12 +132,12 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
     {title.media_type==='tv'&&<Button onClick={()=>setEpisodes(true)}>Episodes</Button>}<span className="spacer"/>
     <select aria-label={party?'Party source':'Playback source'} value={source} disabled={busy} onChange={e=>party?setSwitching(e.target.value):go(watchLink(title,{season,episode,source:e.target.value,position:stats.position}))}>
      {SOURCES.filter(s=>!party||((desktop?desktopPartySupported(s.id):s.controls)&&api.sources.includes(s.id))).map(s=><option key={s.id} value={s.id}>Source {SOURCES.indexOf(s)+1} · {s.name}</option>)}
-    </select>{!desktop&&<Button onClick={()=>setControls(false)}>Hide controls</Button>}
+    </select>{(!desktop||nativeAutoHide&&playing&&!waiting)&&<Button onClick={()=>{root.current?.focus({preventScroll:true});setControls(false)}}>Hide controls</Button>}
    </div>
    <p className="player-note">{party?(playing?(desktop?'Playing on this computer':'Playing on this browser'):waiting?(desktop?'Waiting for this computer’s video':'Waiting for this browser’s video'):party.playing?'Starting party playback…':party.desiredPlaying?'Waiting for everyone’s video':'Party paused'):!desktop&&!src.controls?'Use the video’s own playback controls. This source does not offer remote browser controls.':!protocol.current?'Use the video’s controls while ANY waits for its control connection.':'Space: play / pause · Left / right: skip · Up / down: controls · Esc: hide controls, then leave'}</p>
    {showHelp&&<div className="playback-help"><p>{party?failureText:src.progress?'No playback status received yet. If the video is blank, try another source or reload the player.':'This source does not report playback to ANY. Automatic watch-history tracking is unavailable.'}</p><div className="actions"><Button onClick={reload}>Reload player</Button>{!party&&<><a className="button" href={url.current} target="_blank" rel="noopener noreferrer">Open source ↗</a><Button onClick={()=>setConfirmed(true)}>Mark as watched</Button></>}</div></div>}
   </div>}
-  {!controls&&!waiting&&<Button className="show-controls" onClick={()=>setControls(true)}>Show controls</Button>}
+  {!desktop&&!controls&&!waiting&&<Button className="show-controls" onClick={()=>setControls(true)}>Show controls</Button>}
   {switching&&<Modal title="Change the party source?" onClose={()=>setSwitching('')}><p>Switch everyone to {sourceById(switching).name}. The party pauses and each player reloads at the same position. Everyone stays in the party.</p><Button tone="red" disabled={busy} onClick={async()=>{setBusy(true);try{await api.command('join',{partyId:party.id,source:switching});setSwitching('')}catch(e){onError(e.message)}finally{setBusy(false)}}}>Switch source for everyone</Button></Modal>}
   {episodes&&<Modal wide title="Choose an episode" onClose={()=>setEpisodes(false)}><Episodes title={title} season={selectedSeason} onSeason={setSelectedSeason} onPlay={playEpisode}/></Modal>}
   {confirmed&&<Modal title="Mark as watched?" onClose={()=>setConfirmed(false)}><p>This marks {title.media_type==='tv'?`season ${season}, episode ${episode}`:title.title} complete in this profile’s history.</p><Button tone="red" onClick={()=>{const value=progressValue(title,title.media_type==='tv'?season:0,title.media_type==='tv'?episode:0,stats.duration||title.runtime*60,stats.duration||title.runtime*60,true);api.change('progress',value.key,value);setConfirmed(false)}}>Mark watched</Button></Modal>}

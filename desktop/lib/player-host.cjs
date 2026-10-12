@@ -5,7 +5,7 @@ const {allowedPlayerURL,playerCommand,bounds,validSample}=require('./policy.cjs'
 const {installVideoBridge}=require('./video-bridge.cjs');
 const WORLD=1001;
 class PlayerHost{
- constructor(win,{emit,key}={}){this.win=win;this.emit=emit||((data)=>win.webContents.send('any:player-event',data));this.key=key||((data)=>win.webContents.send('any:player-key',data));this.current=null;}
+ constructor(win,{emit,key}={}){this.win=win;this.emit=emit||((data)=>win.webContents.send('any:player-event',data));this.key=key||((data)=>win.webContents.send('any:player-key',data));this.current=null;const resize=()=>{if(this.current?.boundsInput)this.setBounds(this.current.boundsInput);};win.on('resize',resize);win.on('enter-full-screen',resize);win.on('leave-full-screen',resize);}
  async open(spec){
   this.close();const ses=session.fromPartition('any-player-'+randomUUID());
   ses.setPermissionRequestHandler((_w,_p,callback)=>callback(false));ses.setPermissionCheckHandler(()=>false);
@@ -24,7 +24,15 @@ class PlayerHost{
   wc.on('render-process-gone',()=>{this.notify(current,{kind:'error',message:'The video process stopped. Reload the player.'});this.close(spec.session);});
   wc.on('before-input-event',(event,input)=>{
    if(input.type!=='keyDown'||input.control||input.meta||input.alt)return;
-   if([' ','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape'].includes(input.key)){event.preventDefault();this.key({session:spec.session,key:input.key});}
+   if([' ','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape','Tab'].includes(input.key)){event.preventDefault();this.key({session:spec.session,key:input.key});}
+  });
+  let lastPointer=0,lastPointerPosition='';
+  wc.on('before-mouse-event',(_event,mouse)=>{
+   if(!['mouseMove','mouseDown','mouseWheel'].includes(mouse.type))return;
+   const rect=view.getBounds(),point=`${mouse.globalX??mouse.x+rect.x}:${mouse.globalY??mouse.y+rect.y}`;
+   if(mouse.type==='mouseMove'&&point===lastPointerPosition)return;
+   if(mouse.type==='mouseMove'&&Date.now()-lastPointer<200)return;
+   lastPointerPosition=point;lastPointer=Date.now();this.notify(current,{kind:'pointer'});
   });
   current.timer=setInterval(()=>{
    if(Date.now()-current.lastBeat>8000){this.notify(current,{kind:'error',message:'The app connection to the player stopped. Reload the player.'});this.close(spec.session);return;}
@@ -51,7 +59,7 @@ class PlayerHost{
   if(!current.injected||!allowedPlayerURL(current.view.webContents.getURL(),current.spec))return false;
   try{return await current.view.webContents.executeJavaScriptInIsolatedWorld(WORLD,[{code:`globalThis.__ANY_NATIVE_PLAYER__?.control(${JSON.stringify(cmd.command)},${JSON.stringify(cmd.time??null)}) || false`}]);}catch{return false;}
  }
- setBounds(input){const current=this.current;if(!current||current.spec.session!==input.session)return false;const rect=bounds(input,this.win.getContentSize());current.view.setBounds(rect);current.view.setVisible(input.visible&&rect.width>0&&rect.height>0);current.visible=input.visible;return true;}
+ setBounds(input){const current=this.current;if(!current||current.spec.session!==input.session)return false;const rect=bounds(input,this.win.getContentSize());current.boundsInput={...input};current.view.setBounds(rect);current.view.setVisible(input.visible&&rect.width>0&&rect.height>0);current.visible=input.visible;return true;}
  close(id){const current=this.current;if(!current||id&&current.spec.session!==id)return;this.current=null;clearInterval(current.timer);this.win.contentView.removeChildView(current.view);if(!current.view.webContents.isDestroyed())current.view.webContents.close();}
 }
 module.exports={PlayerHost};

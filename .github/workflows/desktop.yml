@@ -50,6 +50,7 @@ jobs:
           $result = Get-Content $report -Raw | ConvertFrom-Json
           if (!$result.passed) { throw 'Installed application checks failed' }
           Copy-Item $report release/native-test-result.json
+          Copy-Item (Join-Path $env:TEMP 'ANY-layout-*.png') release/
           $updateReport = Join-Path $env:TEMP 'ANY-update-test-result.json'
           Remove-Item $updateReport -ErrorAction SilentlyContinue
           $releasePath = (Resolve-Path release).Path
@@ -70,6 +71,7 @@ jobs:
             desktop/release/update-test-result.json
             desktop/release/SHA256SUMS.txt
             desktop/release/native-test-result.json
+            desktop/release/ANY-layout-*.png
           retention-days: 90
           if-no-files-found: error
       - name: Publish the verified Windows release

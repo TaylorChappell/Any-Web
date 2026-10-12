@@ -1,7 +1,7 @@
 {
   "name": "any-desktop",
   "productName": "ANY",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "ANY for Windows with native video controls and Together",
   "author": "Taylor Chappell",
   "private": true,

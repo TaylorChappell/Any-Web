@@ -29,6 +29,8 @@ function playerCommand(input){
 }
 function bounds(input,size){
  if(!input||!['x','y','width','height'].every(k=>Number.isFinite(input[k]))||typeof input.visible!=='boolean')throw Error('Invalid player bounds');
+ if(input.fillWindow!==undefined&&typeof input.fillWindow!=='boolean')throw Error('Invalid window layout');
+ if(input.fillWindow)return {x:0,y:0,width:size[0],height:size[1]};
  const x=Math.max(0,Math.min(size[0],Math.round(input.x))),y=Math.max(0,Math.min(size[1],Math.round(input.y)));
  return {x,y,width:Math.max(0,Math.min(size[0]-x,Math.round(input.width))),height:Math.max(0,Math.min(size[1]-y,Math.round(input.height)))};
 }

@@ -10,8 +10,8 @@ import {resolve} from 'node:path';
 for(const native of [false,true])test((native?'desktop':'web')+' flow connects from the build variable without an access-code screen, selects shared profiles, searches, saves and rates a title',async t=>{
  const dom=new JSDOM('<!doctype html><div id="root"></div>',{url:'https://taylorchappell.github.io/Any-Web/#/home',pretendToBeVisual:true});
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,location:dom.window.location,EventTarget:dom.window.EventTarget,Event:dom.window.Event,CustomEvent:dom.window.CustomEvent,IS_REACT_ACT_ENVIRONMENT:true,matchMedia:()=>({matches:false})});window.scrollTo=()=>{};
- const nativeCommands=[],nativeOpens=[],nativeEvents=new Set(),nativeKeys=new Set();
- if(native){globalThis.ResizeObserver=class{observe(){}disconnect(){}};window.anyDesktop={protocolVersion:1,version:'0.3.0',openPlayer:async input=>{nativeOpens.push(input);return {session:input.session}},closePlayer:async()=>{},playerCommand:async input=>{nativeCommands.push(input);return true},setPlayerBounds:async()=>true,fullscreen:async()=>true,onPlayerEvent:cb=>{nativeEvents.add(cb);return()=>nativeEvents.delete(cb)},onPlayerKey:cb=>{nativeKeys.add(cb);return()=>nativeKeys.delete(cb)}};}
+ const nativeCommands=[],nativeOpens=[],nativeEvents=new Set(),nativeKeys=new Set(),nativeBounds=[];
+ if(native){globalThis.ResizeObserver=class{observe(){}disconnect(){}};window.anyDesktop={protocolVersion:1,playbackLayoutVersion:1,version:'0.3.2',openPlayer:async input=>{nativeOpens.push(input);return {session:input.session}},closePlayer:async()=>{},playerCommand:async input=>{nativeCommands.push(input);return true},setPlayerBounds:async input=>{nativeBounds.push(input);return true},fullscreen:async()=>true,onPlayerEvent:cb=>{nativeEvents.add(cb);return()=>nativeEvents.delete(cb)},onPlayerKey:cb=>{nativeKeys.add(cb);return()=>nativeKeys.delete(cb)}};}
  if(native){const updates=new Set();let updateState={status:'idle',currentVersion:'0.3.1'};const change=s=>{updateState={...updateState,...s};updates.forEach(cb=>cb(updateState));return updateState};Object.assign(window.anyDesktop,{updateStatus:async()=>updateState,onUpdate:cb=>{updates.add(cb);return()=>updates.delete(cb)},checkForUpdates:async()=>change({status:'available',version:'0.3.2'}),downloadUpdate:async()=>change({status:'downloaded'}),installUpdate:async()=>change({status:'installing'})});}
  const liveMessages=[],requests=[],profile={id:'profile-one',name:'Taylor',avatar:0},library={saved:[],progress:[],feedback:[]};let selected=false,parties=[];
  const film={id:550,title:'Test Film',media_type:'movie',overview:'A test description.',poster_path:'/poster.jpg',backdrop_path:'/backdrop.jpg',release_date:'2025-01-01',vote_average:8.2,runtime:120,genres:[{id:18,name:'Drama'}],recommendations:{results:[]},videos:{results:[]},credits:{cast:[]}};
@@ -88,6 +88,20 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  await wait(()=>native?nativeOpens.at(-1)?.source==='vidcore':document.querySelector('.video-stage iframe')?.src.includes('vidcore.io'));
  assert.ok(requests.some(r=>r.body?.action==='join'&&r.body.source==='vidcore'));
 
+ if(native){
+  await act(async()=>{location.hash='/watch/movie/550?source=movish';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>nativeOpens.at(-1)?.party===false);
+  const session=nativeOpens.at(-1).session;
+  const soloStatus=playing=>{for(const cb of nativeEvents)cb({session,kind:'status',data:{event:'playerstatus',position:15,duration:7200,playing,playable:true,controllable:true}})};
+  await act(async()=>soloStatus(true));
+  await act(async()=>{await new Promise(r=>setTimeout(r,3200))});
+  assert.ok(document.querySelector('.desktop-player.cinema-mode'),'active playback hides idle controls');
+  assert.equal(document.querySelector('.player-top'),null);assert.equal(nativeBounds.at(-1).fillWindow,true);
+  await act(async()=>{for(const cb of nativeEvents)cb({session:'stale-session',kind:'pointer'})});assert.ok(document.querySelector('.cinema-mode'),'stale native events cannot reveal controls');
+  await act(async()=>{for(const cb of nativeEvents)cb({session,kind:'pointer'})});
+  assert.ok(document.querySelector('.player-top'));assert.equal(nativeBounds.at(-1).fillWindow,false);
+  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Hide controls').click());assert.ok(document.querySelector('.cinema-mode'));
+  await act(async()=>soloStatus(false));assert.ok(document.querySelector('.player-top'),'pause restores controls');assert.equal(nativeBounds.at(-1).fillWindow,false);
+ }
  if(native){
   await act(async()=>{location.hash='/settings';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.settings-page'));
   const button=label=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===label);

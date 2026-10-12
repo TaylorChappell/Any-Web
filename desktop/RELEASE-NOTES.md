@@ -1,9 +1,9 @@
-ANY Desktop 0.3.1
+ANY Desktop 0.3.2
 
-- Checks for updates at startup and every six hours.
-- Settings and the ANY menu include Check for updates.
-- Download progress and Restart and install; installation never interrupts playback automatically.
-- New desktop Together parties always start paused on Movish.
-- Hei Hei is available as a Disney profile picture in the updated interface.
+- The native video fills its playback area, including sources with constrained page layouts.
+- Title and playback controls hide after three seconds while playing, allowing video to use the entire window.
+- Move the mouse or press Up/Down to bring controls back. Pausing, loading and errors keep controls visible.
+- Fullscreen and resizing update the native view immediately. The original video proportions are preserved.
+- Together, source selection and update installation remain available.
 
-Install this version once over 0.3.0 to enable the updater. Profiles and watch history are preserved. This Windows x64 installer is unsigned.
+Update from Settings > Check for updates, then download and restart. Windows x64; unsigned installer.
