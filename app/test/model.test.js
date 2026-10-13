@@ -12,3 +12,18 @@ test('MCU release sorting retains distinct seasons and hides upcoming or undated
  const rows=releasedCollection([{...base,release_date:'2023-01-01',collection_season:2},{...base,release_date:'2021-01-01',collection_season:1},{...base,release_date:'2027-01-01',collection_season:3},{...base,release_date:'',collection_season:4},{id:2,media_type:'movie',release_date:'2022-01-01'}],'2026-10-12');
  assert.deepEqual(rows.map(t=>t.collection_season||0),[1,0,2]);assert.equal(titleOf(rows[2]).collection_season,2);
 });
+
+test('finished films leave Continue watching at ten minutes without discarding resume position',()=>{
+ const film=titleOf({id:550,title:'Film'},'movie');
+ const before=progressValue(film,0,0,6599,7200),edge=progressValue(film,0,0,6600,7200);
+ assert.equal(before.complete,false);assert.equal(edge.complete,true);assert.equal(edge.position,6600);
+ assert.equal(continueWatching({progress:[{...edge,complete:false}],feedback:[]}).length,0,'older clients’ uncompleted flags still get the same display rule');
+ assert.equal(continueWatching({progress:[before],feedback:[]}).length,1);
+ assert.equal(progressValue(title,1,1,1200,1800).complete,false,'ten-minute rule only applies to films');
+ assert.equal(progressValue(film,0,0,0,500).complete,false,'unstarted short films are not completed');
+});
+test('next episode threshold is five minutes and unaired episodes are excluded',async()=>{
+ const {nextEpisodeVisible,releasedEpisode}=await import('../src/model.js');
+ assert.equal(nextEpisodeVisible(1499,1800),false);assert.equal(nextEpisodeVisible(1500,1800),true);assert.equal(nextEpisodeVisible(1800,1800),true);assert.equal(nextEpisodeVisible(0,0),false);
+ assert.equal(releasedEpisode({episode_number:2,air_date:'2099-01-01'},'2026-10-13'),false);assert.equal(releasedEpisode({episode_number:2,air_date:null}),false);assert.equal(releasedEpisode({episode_number:2,air_date:'2020-01-01'}),true);
+});

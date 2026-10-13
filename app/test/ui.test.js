@@ -25,6 +25,9 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
   else if(u.pathname.endsWith('/commands')){if(body.action==='join'){parties[0]={...parties[0],source:body.source||parties[0].source,epoch:2,members:parties[0].members.map(m=>m.profileId===profile.id?{...m,status:'joined',onThisDevice:true}:m)}}data={partyId:parties[0]?.id};}
   else if(u.pathname.endsWith('/live-ticket'))data={ticket:'test-ticket'};
   else if(u.pathname.includes('/v1/collections/mcu'))data={id:-1,name:'Marvel Cinematic Universe',parts:[{...film,collection_category:'film'}],missing_count:0};
+  else if(u.pathname.endsWith('/tonight'))data={titles:[{...film,tonight_reason:'120 minutes · Picked for your profiles'}]};
+  else if(u.pathname.endsWith('/tv/777'))data={...film,id:777,media_type:'tv',title:'Test Series',seasons:[{season_number:1},{season_number:2}]};
+  else if(u.pathname.includes('/tv/777/season/'))data={episodes:[{episode_number:1,name:'Episode one',air_date:u.pathname.endsWith('/1')?'2020-01-01':'2099-01-01'},{episode_number:2,name:'Episode two',air_date:u.pathname.endsWith('/1')?'2020-01-02':'2099-01-02'}]};
   else if(u.pathname.includes('/v1/tmdb/'))data=u.pathname.match(/movie\/\d+$/)?{...film,id:Number(u.pathname.split('/').at(-1))}:u.pathname.includes('/videos')?{results:[]}:u.pathname.includes('genre/')?{genres:[{id:18,name:'Drama'}]}:u.pathname.includes('collection/')?{id:Number(u.pathname.split('/').at(-1)),name:'Test collection',parts:[film]}:{results:[film],total_pages:1};
   return new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json'}})
  };
@@ -37,7 +40,7 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  assert.equal(document.querySelector('#access-code'),null);assert.equal(document.querySelector('input[type=password]'),null);
  assert.equal(localStorage.getItem('any.device').includes('testtest'),false,'only the device session is retained in storage');
  await act(async()=>document.querySelector('.profile-tile').click());await wait(()=>document.querySelector('.hero'));assert.equal(selected,true);
- await act(async()=>document.querySelector('.collection-banner button').click());await wait(()=>document.querySelector('[aria-label="Explore Marvel Cinematic Universe"]'));
+ await act(async()=>[...document.querySelectorAll('.franchise-shelf button')].find(b=>b.textContent.trim()==='View all').click());await wait(()=>document.querySelector('[aria-label="Explore Marvel Cinematic Universe"]'));
  await act(async()=>document.querySelector('[aria-label="Explore Marvel Cinematic Universe"]').click());await wait(()=>document.querySelector('.collection-detail'));
  assert.equal(document.querySelector('.collection-detail h1').textContent,'Marvel Cinematic Universe');
  assert.equal(document.querySelectorAll('.collection-order').length,1);
@@ -109,8 +112,26 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
   await act(async()=>button('Download update').click());await wait(()=>button('Restart and install'));
   await act(async()=>button('Restart and install').click());assert.ok(document.body.textContent.includes('Restarting to install'));
  }
+ if(native){
+  await act(async()=>{location.hash='/watch/tv/777?s=1&e=1&source=movish';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>nativeOpens.at(-1)?.id===777);
+  const session=nativeOpens.at(-1).session;
+  const status=position=>{for(const cb of nativeEvents)cb({session,kind:'status',data:{event:'playerstatus',position,duration:1800,playing:true,playable:true,controllable:true}})};
+  await act(async()=>status(1499));assert.equal(document.querySelector('.next-episode-panel'),null);
+  await act(async()=>status(1500));await wait(()=>document.querySelector('.next-episode-panel button'));
+  const next=document.querySelector('.next-episode-panel button');assert.equal(document.activeElement,next);assert.equal(next.textContent.trim(),'Next episode');assert.equal(nativeBounds.at(-1).fillWindow,false,'native video leaves room for the next-episode button');
+  const before=nativeOpens.length;
+  await act(async()=>{for(const cb of nativeKeys)cb({session,key:'ArrowLeft'})});assert.notEqual(document.activeElement,next);
+  await act(async()=>{for(const cb of nativeKeys)cb({session,key:'Enter'})});assert.equal(nativeOpens.length,before,'OK after moving away controls playback, not next episode');
+  await act(async()=>{next.focus();for(const cb of nativeKeys)cb({session,key:'Enter'})});await wait(()=>nativeOpens.at(-1)?.episode===2);
+  assert.equal(library.progress.find(p=>p.key==='tv:777:1:1').position,1500);assert.equal(library.progress.find(p=>p.key==='tv:777:1:1').complete,true);
+ }
+ await act(async()=>{location.hash='/tonight';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.tonight-page'));
+ assert.equal(document.querySelector('.tonight-viewers button').getAttribute('aria-pressed'),'true');
+ await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Find our films').click());await wait(()=>document.querySelector('.tonight-results'));
+ assert.match(document.querySelector('.tonight-results').textContent,/120 minutes/);
  await act(async()=>{location.hash='/search';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.search-page input'));
  const search=document.querySelector('.search-page input');await act(async()=>{Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set.call(search,'Test');search.dispatchEvent(new window.Event('input',{bubbles:true}));search.dispatchEvent(new window.Event('change',{bubbles:true}))});
+ await wait(()=>document.querySelector('.search-page .poster-grid'));assert.equal(document.activeElement,search,'live results retain typing focus');
  await act(async()=>document.querySelector('.search-page form').dispatchEvent(new window.Event('submit',{bubbles:true,cancelable:true})));await wait(()=>document.querySelector('.search-page .poster-grid'));assert.notEqual(document.activeElement,search);
  assert.equal(document.querySelectorAll('.search-page .poster-card').length,1);assert.equal(document.querySelectorAll('.card-preview').length,0);
  assert.ok(requests.filter(r=>r.path.includes('/tmdb/')).every(r=>r.headers.Authorization==='Device test-device-session'));

@@ -30,3 +30,10 @@ test('category shelves load three pages and remove duplicates without multiplyin
  api.tmdb=async(path,params)=>{pages.push(params.page);return {total_pages:8,results:[{id:1,title:'Repeated'},{id:params.page+1,title:'Distinct'}]}};
  const data=await api.shelf('movie/popular');assert.deepEqual(pages,[1,2,3]);assert.deepEqual(data.results.map(t=>t.id),[1,2,3,4]);
 });
+
+test('next episode moves across seasons and stops before unaired or unknown-date episodes',async()=>{
+ const api=new AnyApi('https://example.test');
+ api.tmdb=async path=>path.endsWith('/season/1')?{episodes:[{episode_number:1,air_date:'2020-01-01'}]}:path.endsWith('/season/2')?{episodes:[{episode_number:1,air_date:'2020-02-01'},{episode_number:2,air_date:'2099-01-01'},{episode_number:3,air_date:null}]}:{seasons:[{season_number:1},{season_number:2}]};
+ assert.deepEqual(await api.nextEpisode({id:7},1,1),{season:2,episode:1,name:undefined});
+ assert.equal(await api.nextEpisode({id:7},2,1),null);
+});

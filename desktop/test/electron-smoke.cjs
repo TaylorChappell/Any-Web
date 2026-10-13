@@ -40,10 +40,10 @@ async function run(){
   layoutPeer.host.setBounds({session:layoutPeer.id,x:12,y:80,width:400,height:200,visible:true,fillWindow:true});
   layoutPeer.win.setContentSize(1100,700);
   await until(()=>{const r=layoutPeer.host.current.view.getBounds(),size=layoutPeer.win.getContentSize();return r.x===0&&r.y===0&&r.width===size[0]&&r.height===size[1]},'native view follows window resizing');await fits(layoutPeer);
-  fs.writeFileSync(path.join(app.getPath('temp'),'ANY-layout-window.png'),(await layoutPeer.win.capturePage()).toPNG());
+  fs.writeFileSync(path.join(app.getPath('temp'),'ANY-layout-window.png'),(await layoutPeer.host.current.view.webContents.capturePage()).toPNG());
   layoutPeer.win.setFullScreen(true);await until(()=>layoutPeer.win.isFullScreen(),'enter fullscreen');await fits(layoutPeer);
   await until(()=>{const r=layoutPeer.host.current.view.getBounds(),size=layoutPeer.win.getContentSize();return r.width===size[0]&&r.height===size[1]},'native view fills fullscreen');
-  fs.writeFileSync(path.join(app.getPath('temp'),'ANY-layout-fullscreen.png'),(await layoutPeer.win.capturePage()).toPNG());
+  fs.writeFileSync(path.join(app.getPath('temp'),'ANY-layout-fullscreen.png'),(await layoutPeer.host.current.view.webContents.capturePage()).toPNG());
   layoutPeer.win.setFullScreen(false);await until(()=>!layoutPeer.win.isFullScreen(),'leave fullscreen');await fits(layoutPeer);
   layoutPeer.win.focus();layoutPeer.host.current.view.webContents.focus();layoutPeer.host.current.view.webContents.sendInputEvent({type:'mouseMove',x:55,y:65});
   await until(async()=>await layoutPeer.win.webContents.executeJavaScript('window.nativePointers>0'),'pointer activity reaches the UI while native video covers it');

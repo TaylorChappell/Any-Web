@@ -1,6 +1,6 @@
-# ANY Desktop 0.3.2
+# ANY Desktop 0.3.3
 
-Windows x64 app, installed per user by `ANY-Setup-0.3.2.exe`. It creates desktop
+Windows x64 app, installed per user by `ANY-Setup-0.3.3.exe`. It creates desktop
 and Start menu shortcuts and does not require a separate browser or WebView2
 installation. The installer includes Electron/Chromium. Internet is required.
 

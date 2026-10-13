@@ -1,8 +1,9 @@
+import {releasedEpisode} from './model.js';
 export const BACKEND='https://any-production-8ce3.up.railway.app';
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}};
 const write=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
 export class AnyApi extends EventTarget {
- constructor(base=BACKEND){super();this.base=base;this.device=read('any.device',null);this.profile=read('any.profile',null);this.library={saved:[],progress:[],feedback:[]};this.profiles=[];this.parties=[];this.sources=[];this.online=[];this.status='Connecting';this.offset=0;this.cache=new Map();this.generation=0;this.retries=0;}
+ constructor(base=BACKEND){super();this.base=base;this.device=read('any.device',null);this.profile=read('any.profile',null);this.library={saved:[],progress:[],feedback:[]};this.profiles=[];this.parties=[];this.sources=[];this.online=[];this.status='Connecting';this.offset=0;this.cache=new Map();this.metadataActive=0;this.metadataQueue=[];this.generation=0;this.retries=0;}
  notify(){this.dispatchEvent(new Event('change'))}
  async initialise(configuredToken){
   if(this.device){
@@ -26,8 +27,21 @@ export class AnyApi extends EventTarget {
  async change(collection,key,value,clear=false){const pending=read(this.queueKey(),[]);pending.push({id:crypto.randomUUID(),collection,key,value,clear});write(this.queueKey(),pending);const items=this.library[collection];this.library={...this.library,[collection]:clear?[]:[...items.filter(x=>x.key!==key),...(value?[value]:[])]};this.notify();try{await this.flush()}catch{this.status='Changes saved on this device. Waiting to sync.';this.notify()}}
  async flush(){if(!this.device||!this.profile)return;if(this.flushing){await this.flushing;return this.flush()}const key=this.queueKey(),pending=read(key,[]);if(!pending.length)return;this.flushing=(async()=>{for(let i=0;i<pending.length;i+=100){const result=await this.request('/v1/shared/library/changes',{method:'POST',body:{changes:pending.slice(i,i+100)}});const accepted=new Set(result.accepted);write(key,read(key,[]).filter(x=>!accepted.has(x.id)))}})();try{await this.flushing}finally{this.flushing=null}}
  async refreshLibrary(){const id=this.profile;const data=await this.request('/v1/shared/library');if(id!==this.profile)return;for(const c of read(this.queueKey(),[]))data[c.collection]=c.clear?[]:[...data[c.collection].filter(x=>x.key!==c.key),...(c.value?[c.value]:[])];this.library=data;this.notify()}
- async tmdb(path,params={}){const key=path+'?'+new URLSearchParams({language:'en-GB',...params});let hit=this.cache.get(key);if(hit&&hit.expires>Date.now())return hit.promise;const promise=this.request('/v1/tmdb/'+key).catch(e=>{this.cache.delete(key);throw e});this.cache.set(key,{expires:Date.now()+600000,promise});if(this.cache.size>180)this.cache.delete(this.cache.keys().next().value);return promise}
+ async metadataSlot(work){if(this.metadataActive>=6)await new Promise(resolve=>this.metadataQueue.push(resolve));else this.metadataActive++;try{return await work()}finally{if(this.metadataQueue.length)this.metadataQueue.shift()();else this.metadataActive--}}
+ async tmdb(path,params={}){const key=path+'?'+new URLSearchParams({language:'en-GB',...params});let hit=this.cache.get(key);if(hit&&hit.expires>Date.now())return hit.promise;const promise=this.metadataSlot(()=>this.request('/v1/tmdb/'+key)).catch(e=>{this.cache.delete(key);throw e});this.cache.set(key,{expires:Date.now()+600000,promise});if(this.cache.size>180)this.cache.delete(this.cache.keys().next().value);return promise}
  async shelf(path,params={},pages=3){const first=await this.tmdb(path,{...params,page:params.page||1});const start=Number(params.page)||1;const extra=await Promise.allSettled(Array.from({length:Math.max(0,Math.min(pages-1,(first.total_pages||1)-start))},(_,i)=>this.tmdb(path,{...params,page:start+i+1})));return {...first,results:[...new Map([...first.results,...extra.flatMap(r=>r.status==='fulfilled'?r.value.results:[])].filter(t=>!t.adult).map(t=>[(t.media_type||'')+':'+t.id,t])).values()]}}
+ async nextEpisode(title,season,episode){
+  const current=await this.tmdb(`tv/${title.id}/season/${season}`);
+  const next=(current.episodes||[]).filter(e=>e.episode_number>episode&&releasedEpisode(e)).sort((a,b)=>a.episode_number-b.episode_number)[0];
+  if(next)return {season,episode:next.episode_number,name:next.name};
+  const series=title.season_numbers?.length?{seasons:title.season_numbers.map(n=>({season_number:n}))}:await this.tmdb(`tv/${title.id}`);
+  for(const s of (series.seasons||[]).filter(s=>s.season_number>season).sort((a,b)=>a.season_number-b.season_number)){
+   const data=await this.tmdb(`tv/${title.id}/season/${s.season_number}`);
+   const e=(data.episodes||[]).filter(e=>releasedEpisode(e)).sort((a,b)=>a.episode_number-b.episode_number)[0];
+   if(e)return {season:s.season_number,episode:e.episode_number,name:e.name};
+  }
+  return null;
+ }
  async refreshParties(){const data=await this.request('/v1/shared/parties');this.parties=data.parties||[];this.sources=data.sources||this.sources;this.notify();return this.parties}
  async command(action,fields={}){const result=await this.request('/v1/shared/commands',{method:'POST',body:{id:crypto.randomUUID(),action,...fields}});if(['create','join','leave','decline'].includes(action))await this.refreshParties().catch(()=>{});return result}
  send(value){if(this.ws?.readyState===1)this.ws.send(JSON.stringify(value))}

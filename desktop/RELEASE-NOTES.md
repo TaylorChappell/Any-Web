@@ -1,9 +1,10 @@
-ANY Desktop 0.3.2
+ANY Desktop 0.3.3
 
-- The native video fills its playback area, including sources with constrained page layouts.
-- Title and playback controls hide after three seconds while playing, allowing video to use the entire window.
-- Move the mouse or press Up/Down to bring controls back. Pausing, loading and errors keep controls visible.
-- Fullscreen and resizing update the native view immediately. The original video proportions are preserved.
-- Together, source selection and update installation remain available.
+- Next episode appears with five minutes left. It starts focused and only advances when selected; no countdown or automatic playback.
+- Tonight suggests up to six films for selected profiles, mood and available time.
+- Larger home shelves, artwork-based franchise collections and more Halloween films.
+- Live search while typing and clickable expanded title previews.
+- Films with ten minutes left leave Continue watching while retaining their saved position.
+- Preserves fullscreen sizing, Together playback, profiles and watch history.
 
-Update from Settings > Check for updates, then download and restart. Windows x64; unsigned installer.
+Update in Settings, or run the installer. Windows x64; unsigned installer.
