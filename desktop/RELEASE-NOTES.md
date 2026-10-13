@@ -1,6 +1,6 @@
 # ANY Desktop 0.4.1
 
-- Households: enter a four-digit code to join, or create your own. Existing profiles and history move together into household 2435. View your code or switch households in Settings.
+- Households: enter a four-digit code to join, or create your own. Existing profiles and history stay together in their existing household. View your code or switch households in Settings.
 - Profiles, recommendations, watch history and Together invitations stay within your household.
 - Cast and directors are directly on the title page, with clickable portraits.
 - Collections use the same home-page padding and show Start when you have not begun watching.
