@@ -1,0 +1,37 @@
+name: Refresh public release notes
+on:
+  push:
+    paths: ['.github/workflows/release-notes.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Update the release description after publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/any-notes.md <<'NOTES'
+          # ANY Desktop 0.4.1
+
+          - Join or create a household using a four-digit code. Existing profiles and history stay together. View your code or switch households in Settings.
+          - Profiles, recommendations, history and Together invitations stay within your household.
+          - Cast and directors appear directly below the description with clickable portraits.
+          - Collections align with the other shelves and say Start when untouched.
+          - Removed the large Tonight promo and cached seasonal picks.
+          - Compact Tomatometer and Popcornmeter displays are ready; the backend needs MDBLIST_API_KEY before scores appear.
+          - TV 0.3.1-preview fixes held-OK release and stabilises poster metadata.
+          NOTES
+          for i in $(seq 1 48); do
+            if gh release view v0.4.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              gh release edit v0.4.1 --repo "$GITHUB_REPOSITORY" --notes-file /tmp/any-notes.md
+              exit $?
+            fi
+            sleep 10
+          done
+          echo "Release did not appear within the expected window"
+          exit 1
