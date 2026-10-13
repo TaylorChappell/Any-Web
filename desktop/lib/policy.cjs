@@ -19,13 +19,15 @@ function specification(input){
  const u=new URL(source.origins[0]+path);
  for(const [k,v]of Object.entries({autoPlay:'true',autoplay:'true',theme:'E50914',color:'E50914',autoNext:'false',autonext:'false',nextButton:'false',autoplayNextEpisode:'false',nextEpisode:'false'}))u.searchParams.set(k,v);
  if(input.position>0&&['vidfast','vidcore','vixsrc'].includes(input.source))u.searchParams.set('startAt',String(Math.floor(input.position)));
- return {source:input.source,id:input.id,type:input.type,season:input.season,episode:input.episode,start:input.position,party:input.party,session:input.session,path,origins:source.origins,url:u.href};
+ if(input.subtitleLanguage!==undefined&&input.subtitleLanguage!==null&&(typeof input.subtitleLanguage!=='string'||input.subtitleLanguage.length>32))throw Error('Invalid subtitle preference');
+ return {subtitleLanguage:input.subtitleLanguage??null,source:input.source,id:input.id,type:input.type,season:input.season,episode:input.episode,start:input.position,party:input.party,session:input.session,path,origins:source.origins,url:u.href};
 }
 function allowedPlayerURL(value,spec){try{const u=new URL(value);return !u.username&&!u.password&&spec.origins.includes(u.origin)&&u.pathname===spec.path}catch{return false}}
 function playerCommand(input){
- if(!input||!['play','pause','seek','getStatus'].includes(input.command))throw Error('Invalid playback command');
+ if(!input||!['play','pause','seek','getStatus','subtitle'].includes(input.command))throw Error('Invalid playback command');
  if(input.command==='seek'&&(!Number.isFinite(input.time)||input.time<0||input.time>172800))throw Error('Invalid position');
- return {command:input.command,...(input.command==='seek'?{time:input.time}:{})};
+ if(input.command==='subtitle'&&(!Number.isInteger(input.time)||input.time< -1||input.time>31))throw Error('Invalid subtitle track');
+ return {command:input.command,...(['seek','subtitle'].includes(input.command)?{time:input.time}:{})};
 }
 function bounds(input,size){
  if(!input||!['x','y','width','height'].every(k=>Number.isFinite(input[k]))||typeof input.visible!=='boolean')throw Error('Invalid player bounds');

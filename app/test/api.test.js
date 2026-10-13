@@ -37,3 +37,11 @@ test('next episode moves across seasons and stops before unaired or unknown-date
  assert.deepEqual(await api.nextEpisode({id:7},1,1),{season:2,episode:1,name:undefined});
  assert.equal(await api.nextEpisode({id:7},2,1),null);
 });
+
+test('guest viewing never writes, queues changes, resumes an old live session or saves the guest as a profile',async()=>{
+ values.clear();const a=new AnyApi('https://test.invalid');a.profile='one';a.library={saved:[{key:'movie:1'}],progress:[],feedback:[]};let requests=0;a.request=async()=>{requests++;throw Error('Guest must not request private history')};
+ a.selectGuest();assert.equal(a.profile,'guest');assert.equal(a.guest,true);assert.equal(a.library.saved.length,0);
+ await a.change('progress','movie:1',{position:120});await a.flush();await a.refreshLibrary();await a.refreshParties();a.startLive();
+ assert.equal(requests,0);assert.equal([...values.values()].some(v=>v.includes('guest')),false);assert.equal(a.library.progress.length,0);
+ await assert.rejects(a.command('create',{}),/profile/);
+});

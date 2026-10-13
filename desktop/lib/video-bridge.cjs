@@ -5,6 +5,9 @@ function installVideoBridge(config){
  if(!config.origins.includes(location.origin)||location.pathname!==config.path||window.top!==window)return false;
  if(globalThis.__ANY_NATIVE_PLAYER__?.session===config.session)return true;
  let video=null,restored=false,episodeChanged=false,pending=[],lastProgress=0,error=null;
+ let subtitleLanguage=config.subtitleLanguage??null,subtitleIndex=null;
+ const subtitleTracks=()=>Array.from(video?.textTracks||[]).map((t,index)=>({t,index})).filter(({t})=>['subtitles','captions'].includes(t.kind)).slice(0,32);
+ function applySubtitles(){if(subtitleLanguage===null)return;const tracks=subtitleTracks(),target=tracks.find(x=>x.index===subtitleIndex)||tracks.find(({t})=>t.language===subtitleLanguage)||tracks[0];for(const {t,index}of tracks)t.mode=subtitleLanguage!=='off'&&index===target?.index?'showing':'disabled';}
  const bound=new WeakSet();
  const layout=new Map();let layoutVideo=null,layoutParent=null;
  function style(node,values){
@@ -42,7 +45,7 @@ function installVideoBridge(config){
  function docs(root,depth=0){const list=[root];if(depth<3)for(const frame of root.querySelectorAll('iframe')){try{if(frame.contentDocument)list.push(...docs(frame.contentDocument,depth+1))}catch{}}return list;}
  function snapshot(event='playerstatus'){
   const v=video,duration=v&&Number.isFinite(v.duration)&&v.duration>0?v.duration:0,position=v&&Number.isFinite(v.currentTime)?Math.max(0,Math.min(v.currentTime,duration)):0;
-  return {event,position,duration,playing:!!v&&!v.paused&&!v.ended,playable:!!v&&restored&&!episodeChanged&&!v.seeking&&v.readyState>=3,controllable:!!v&&!episodeChanged,mediaLoaded:duration>0,buffering:!!v&&v.readyState<3,episodeChanged,error};
+  return {event,position,duration,playing:!!v&&!v.paused&&!v.ended,playable:!!v&&restored&&!episodeChanged&&!v.seeking&&v.readyState>=3,controllable:!!v&&!episodeChanged,mediaLoaded:duration>0,buffering:!!v&&v.readyState<3,episodeChanged,error,subtitles:subtitleTracks().map(({t,index})=>({index,label:t.label||t.language||`Subtitles ${index+1}`,language:t.language||"",selected:t.mode==="showing"}))};
  }
  function report(event){if(event==='timeupdate'&&Date.now()-lastProgress<250)return;lastProgress=Date.now();pending.push(snapshot(event));if(pending.length>16)pending.shift();}
  function restore(v){
@@ -53,14 +56,14 @@ function installVideoBridge(config){
   const all=docs(document),area=v=>{const r=v.getBoundingClientRect();return r.width*r.height;};
   const next=all.map(d=>d.querySelector('#mv-player video')).find(Boolean)||all.flatMap(d=>Array.from(d.querySelectorAll('video'))).filter(v=>area(v)>=14400).sort((a,b)=>area(b)-area(a))[0];
   if(!next){if(video&&!video.isConnected){video=null;restored=false;clearLayout();}return;}
-  if(next!==video){video=next;restored=false;error=null;}
+  if(next!==video){video=next;restored=false;error=null;subtitleIndex=null;}
   if(!bound.has(next)){
    bound.add(next);if(config.party)next.pause();
    for(const name of ['playing','pause','seeked','ended','timeupdate'])next.addEventListener(name,()=>{if(next!==video)return;restore(next);report(name==='playing'?'play':name);});
    for(const name of ['loadedmetadata','canplay'])next.addEventListener(name,()=>restore(next));
    next.addEventListener('error',()=>{if(next===video)error='media-error';});
   }
-  restore(next);fitVideo(next);
+  restore(next);applySubtitles();fitVideo(next);
  }
  window.addEventListener('message',event=>{
   if(config.source!=='movish'||event.source!==window||event.origin!==location.origin)return;
@@ -73,6 +76,7 @@ function installVideoBridge(config){
   control(command,time){bind();if(command==='getStatus')return true;if(!video||episodeChanged)return false;
    try{if(command==='play'){video.muted=false;error=null;Promise.resolve(video.play()).catch(()=>{error='play-rejected';});}
     else if(command==='pause')video.pause();
+    else if(command==='subtitle'){const tracks=subtitleTracks();if(time!==-1&&!tracks.some(x=>x.index===time))return false;subtitleIndex=time;subtitleLanguage=time===-1?'off':tracks.find(x=>x.index===time).t.language||'';applySubtitles();}
     else if(command==='seek'&&Number.isFinite(time)&&Number.isFinite(video.duration))video.currentTime=Math.max(0,Math.min(video.duration,time));
     else return false;return true;
    }catch{return false;}

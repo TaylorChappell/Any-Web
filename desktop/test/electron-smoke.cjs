@@ -47,6 +47,16 @@ async function run(){
   layoutPeer.win.setFullScreen(false);await until(()=>!layoutPeer.win.isFullScreen(),'leave fullscreen');await fits(layoutPeer);
   layoutPeer.win.focus();layoutPeer.host.current.view.webContents.focus();layoutPeer.host.current.view.webContents.sendInputEvent({type:'mouseMove',x:55,y:65});
   await until(async()=>await layoutPeer.win.webContents.executeJavaScript('window.nativePointers>0'),'pointer activity reaches the UI while native video covers it');
+  const captionsPeer=peers[0];
+  await captionsPeer.host.current.view.webContents.executeJavaScript("(()=>{const v=document.querySelector('video');v.addTextTrack('subtitles','English','en');v.addTextTrack('subtitles','English SDH','en');return true})()");
+  await until(()=>captionsPeer.events.at(-1)?.subtitles?.length===2,'actual native subtitle tracks are reported');
+  const beforeCaptions=captionsPeer.events.at(-1).position;
+  await captionsPeer.control({session:captionsPeer.id,command:'subtitle',time:1});
+  await until(()=>captionsPeer.events.at(-1)?.subtitles?.[1]?.selected,'subtitle command selects English SDH through IPC');
+  await wait(1100);assert.equal(captionsPeer.events.at(-1).subtitles[1].selected,true,'duplicate language does not change selected track');
+  await captionsPeer.control({session:captionsPeer.id,command:'subtitle',time:-1});
+  await until(()=>captionsPeer.events.at(-1)?.subtitles?.every(t=>!t.selected),'subtitles turn Off');
+  assert.ok(Math.abs(captionsPeer.events.at(-1).position-beforeCaptions)<.3,'subtitle changes retain the paused timeline');
   room={...room,playing:true,anchor:Date.now()+600};
   await until(()=>peers.every(p=>p.sync.view().playing&&p.sync.sample.position>4),'both real videos advance on one shared play');
   assert.ok(Math.abs(peers[0].sync.sample.position-peers[1].sync.sample.position)<1.5);
@@ -65,7 +75,7 @@ async function run(){
   await until(()=>p.ready,'same-origin nested player is ready');await fits(p,true);
   p.host.close(old);assert.ok(p.host.current,'stale close cannot stop the current episode');await p.win.webContents.executeJavaScript(`window.anyDesktop.closePlayer(${JSON.stringify(p.id)})`);assert.equal(p.host.current,null);
   assert.deepEqual(unexpected,[],'programmatic playback must not echo group commands');
-  const report={passed:true,checks:['video fits constrained source page','same-origin nested video fills native view','window resize and fullscreen geometry','pointer events recover hidden controls','two real Chromium video decoders','automatic startup','native play and acknowledged pause','shared forward seek and rewind','drift below 1.5 seconds','episode reload and stale-session rejection','real preload IPC commands and native events','source has no Node or desktop IPC','sandbox and web security enabled'],platform:process.platform,electron:process.versions.electron,appVersion:app.getVersion()};
+  const report={passed:true,checks:['subtitle IPC selection and Off preserve position','duplicate language selection remains stable','video fits constrained source page','same-origin nested video fills native view','window resize and fullscreen geometry','pointer events recover hidden controls','two real Chromium video decoders','automatic startup','native play and acknowledged pause','shared forward seek and rewind','drift below 1.5 seconds','episode reload and stale-session rejection','real preload IPC commands and native events','source has no Node or desktop IPC','sandbox and web security enabled'],platform:process.platform,electron:process.versions.electron,appVersion:app.getVersion()};
   const output=path.join(app.getPath('temp'),'ANY-desktop-test-result.json');fs.writeFileSync(output,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
  }catch(error){
   for(const p of peers){let dom;try{dom=await p.host.current?.view.webContents.executeJavaScript('JSON.stringify({url:location.href,videos:Array.from(document.querySelectorAll("video")).map(v=>({paused:v.paused,time:v.currentTime,duration:v.duration,ready:v.readyState,seeking:v.seeking,error:v.error?.code}))})');}catch{}console.error(JSON.stringify({windowSize:p.win.getContentSize(),viewBounds:p.host.current?.view.getBounds(),fullscreen:p.win.isFullScreen(),phase:p.sync.phase,failure:p.sync.failure,ready:p.ready,sample:p.sync.sample,events:p.events.slice(-4),injected:p.host.current?.injected,lastError:p.host.current?.lastError,dom}));}

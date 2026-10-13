@@ -14,7 +14,7 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  if(native){globalThis.ResizeObserver=class{observe(){}disconnect(){}};window.anyDesktop={protocolVersion:1,playbackLayoutVersion:1,version:'0.3.2',openPlayer:async input=>{nativeOpens.push(input);return {session:input.session}},closePlayer:async()=>{},playerCommand:async input=>{nativeCommands.push(input);return true},setPlayerBounds:async input=>{nativeBounds.push(input);return true},fullscreen:async()=>true,onPlayerEvent:cb=>{nativeEvents.add(cb);return()=>nativeEvents.delete(cb)},onPlayerKey:cb=>{nativeKeys.add(cb);return()=>nativeKeys.delete(cb)}};}
  if(native){const updates=new Set();let updateState={status:'idle',currentVersion:'0.3.1'};const change=s=>{updateState={...updateState,...s};updates.forEach(cb=>cb(updateState));return updateState};Object.assign(window.anyDesktop,{updateStatus:async()=>updateState,onUpdate:cb=>{updates.add(cb);return()=>updates.delete(cb)},checkForUpdates:async()=>change({status:'available',version:'0.3.2'}),downloadUpdate:async()=>change({status:'downloaded'}),installUpdate:async()=>change({status:'installing'})});}
  const liveMessages=[],requests=[],profile={id:'profile-one',name:'Taylor',avatar:0},library={saved:[],progress:[],feedback:[]};let selected=false,parties=[];
- const film={id:550,title:'Test Film',media_type:'movie',overview:'A test description.',poster_path:'/poster.jpg',backdrop_path:'/backdrop.jpg',release_date:'2025-01-01',vote_average:8.2,runtime:120,genres:[{id:18,name:'Drama'}],recommendations:{results:[]},videos:{results:[]},credits:{cast:[]}};
+ const film={id:550,title:'Test Film',media_type:'movie',overview:'A test description.',poster_path:'/poster.jpg',backdrop_path:'/backdrop.jpg',release_date:'2025-01-01',vote_average:8.2,runtime:120,genres:[{id:18,name:'Drama'}],recommendations:{results:[]},videos:{results:[]},credits:{cast:[{id:900,name:'Test Actor',profile_path:'/actor.jpg',character:'Lead'}],crew:[{id:901,name:'Test Director',job:'Director',profile_path:'/director.jpg'}]},vote_count:12400,original_language:'en'};
  globalThis.fetch=async(url,init={})=>{const u=new URL(url),body=init.body?JSON.parse(init.body):null;requests.push({path:u.pathname,headers:init.headers,body});let data={};
   if(u.pathname.endsWith('/devices'))data={id:'device-one',token:'test-device-session'};
   else if(u.pathname.endsWith('/bootstrap')||u.pathname.endsWith('/profiles'))data={profiles:[profile],mapping:{}};
@@ -28,6 +28,8 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
   else if(u.pathname.endsWith('/tonight'))data={titles:[{...film,tonight_reason:'120 minutes · Picked for your profiles'}]};
   else if(u.pathname.endsWith('/tv/777'))data={...film,id:777,media_type:'tv',title:'Test Series',seasons:[{season_number:1},{season_number:2}]};
   else if(u.pathname.includes('/tv/777/season/'))data={episodes:[{episode_number:1,name:'Episode one',air_date:u.pathname.endsWith('/1')?'2020-01-01':'2099-01-01'},{episode_number:2,name:'Episode two',air_date:u.pathname.endsWith('/1')?'2020-01-02':'2099-01-02'}]};
+  else if(u.pathname.endsWith('/person/900/combined_credits'))data={cast:[film],crew:[]};
+  else if(u.pathname.endsWith('/person/900'))data={id:900,name:'Test Actor',profile_path:'/actor.jpg'};
   else if(u.pathname.includes('/v1/tmdb/'))data=u.pathname.match(/movie\/\d+$/)?{...film,id:Number(u.pathname.split('/').at(-1))}:u.pathname.includes('/videos')?{results:[]}:u.pathname.includes('genre/')?{genres:[{id:18,name:'Drama'}]}:u.pathname.includes('collection/')?{id:Number(u.pathname.split('/').at(-1)),name:'Test collection',parts:[film]}:{results:[film],total_pages:1};
   return new Response(JSON.stringify(data),{status:200,headers:{'content-type':'application/json'}})
  };
@@ -126,7 +128,7 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
   assert.equal(library.progress.find(p=>p.key==='tv:777:1:1').position,1500);assert.equal(library.progress.find(p=>p.key==='tv:777:1:1').complete,true);
  }
  await act(async()=>{location.hash='/tonight';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.tonight-page'));
- assert.equal(document.querySelector('.tonight-viewers button').getAttribute('aria-pressed'),'true');
+ assert.equal(document.querySelector('.tonight-options .choice-chip').getAttribute('aria-pressed'),'true');
  await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Find our films').click());await wait(()=>document.querySelector('.tonight-results'));
  assert.match(document.querySelector('.tonight-results').textContent,/120 minutes/);
  await act(async()=>{location.hash='/search';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.search-page input'));
@@ -136,6 +138,14 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  assert.equal(document.querySelectorAll('.search-page .poster-card').length,1);assert.equal(document.querySelectorAll('.card-preview').length,0);
  assert.ok(requests.filter(r=>r.path.includes('/tmdb/')).every(r=>r.headers.Authorization==='Device test-device-session'));
  assert.ok(requests.filter(r=>r.path.includes('/library')).every(r=>r.headers['X-Any-Profile']===profile.id));
+ const poster=document.querySelector('.search-page .poster-card');await act(async()=>{poster.focus();poster.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));await new Promise(r=>setTimeout(r,520))});await wait(()=>document.querySelector('.quick-actions'));
+ await act(async()=>poster.dispatchEvent(new window.KeyboardEvent('keyup',{key:'Enter',bubbles:true,cancelable:true})));assert.ok(location.hash.startsWith('#/search'),'long press does not also open the title');
+ await act(async()=>document.querySelector('.quick-actions [aria-label="Watched"]').click());await wait(()=>library.feedback.find(f=>f.key==='movie:550')?.watchState==='watched');
+ await act(async()=>document.querySelector('[aria-label="Close"]').click());assert.equal(document.activeElement,poster,'quick action dismissal restores poster focus');assert.ok(document.querySelector('.watched-badge'));
+ await act(async()=>poster.click());await wait(()=>document.querySelector('.detail-actions'));
+ await act(async()=>document.querySelector('[aria-label="More details"]').click());await wait(()=>document.querySelector('.more-details'));assert.ok(document.querySelector('.more-details').textContent.includes('12,400 votes'));
+ await act(async()=>[...document.querySelectorAll('.person-card')].find(p=>p.textContent.includes('Test Actor')).click());await wait(()=>document.querySelector('.person-heading'));assert.equal(document.querySelectorAll('.poster-card').length,1);
+ await act(async()=>[...document.querySelectorAll('.person-heading button')][0].click());assert.equal(document.querySelectorAll('.poster-card').length,0,'unwatched actor filter honours manual watched state');
  // Unmount to stop live connection timers, then release the DOM.
  await act(async()=>{location.hash='/profiles';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});
  await act(()=>app.appRoot.unmount());
