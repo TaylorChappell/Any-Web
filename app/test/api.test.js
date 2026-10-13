@@ -45,3 +45,8 @@ test('guest viewing never writes, queues changes, resumes an old live session or
  assert.equal(requests,0);assert.equal([...values.values()].some(v=>v.includes('guest')),false);assert.equal(a.library.progress.length,0);
  await assert.rejects(a.command('create',{}),/profile/);
 });
+test('household switch rotates credentials, clears private state and keeps pending writes scoped to their old profile',async()=>{
+ values.clear();const a=new AnyApi('https://test.invalid');a.device={id:'device',token:'old'};a.profile='old-profile';a.household={id:'old-home',code:'2435'};a.library={saved:[{key:'movie:1'}],progress:[],feedback:[]};a.parties=[{id:'old-party'}];a.online=['old-profile'];
+ let request;a.request=async(path,options)=>{request={path,...options};return {device:{id:'device',token:'new'},household:{id:'new-home',code:'0042'},profiles:[{id:'new-profile'}]}};
+ await a.changeHousehold('0042');assert.equal(request.path,'/v1/shared/household/join');assert.equal(request.body.code,'0042');assert.equal(a.device.token,'new');assert.equal(a.profile,null);assert.equal(a.household.code,'0042');assert.deepEqual(a.parties,[]);assert.deepEqual(a.online,[]);assert.deepEqual(a.library.saved,[]);assert.equal(JSON.parse(values.get('any.device')).token,'new');
+});

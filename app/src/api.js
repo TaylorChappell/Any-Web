@@ -3,23 +3,24 @@ export const BACKEND='https://any-production-8ce3.up.railway.app';
 const read=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}};
 const write=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
 export class AnyApi extends EventTarget {
- constructor(base=BACKEND){super();this.base=base;this.device=read('any.device',null);this.profile=read('any.profile',null);this.library={saved:[],progress:[],feedback:[]};this.profiles=[];this.parties=[];this.sources=[];this.online=[];this.status='Connecting';this.offset=0;this.cache=new Map();this.metadataActive=0;this.metadataQueue=[];this.generation=0;this.retries=0;this.guest=false;}
+ constructor(base=BACKEND){super();this.base=base;this.device=read('any.device',null);this.profile=read('any.profile',null);this.library={saved:[],progress:[],feedback:[]};this.profiles=[];this.parties=[];this.sources=[];this.online=[];this.status='Connecting';this.offset=0;this.cache=new Map();this.metadataActive=0;this.metadataQueue=[];this.generation=0;this.retries=0;this.guest=false;this.household=read('any.household',null);}
  notify(){this.dispatchEvent(new Event('change'))}
  async initialise(configuredToken){
   if(this.device){
-   try{return await this.bootstrap()}catch(error){if(error.status!==401)throw error;this.stopLive();this.device=null;this.profile=null;localStorage.removeItem('any.device');localStorage.removeItem('any.profile')}
+   try{return await this.bootstrap()}catch(error){if(error.status!==401)throw error;this.stopLive();this.device=null;this.profile=null;this.household=null;localStorage.removeItem('any.household');localStorage.removeItem('any.device');localStorage.removeItem('any.profile')}
   }
   const token=typeof configuredToken==='string'?configuredToken.trim():'';
   if(token.length<32||/^(replace_with_|your_)/i.test(token))throw new Error('This website is not configured yet. Please contact the owner.');
   try{return await this.connect(token)}catch(error){if(error.status===401)throw new Error('This website’s connection settings need updating. Please contact the owner.');throw error}
  }
  async request(path,{method='GET',body,accessCode,signal}={}){
-  let response;try{response=await fetch(this.base+path,{method,signal:signal??AbortSignal.timeout(18000),headers:{Authorization:accessCode?'Bearer '+accessCode:'Device '+(this.device?.token??''),...(this.profile?{'X-Any-Profile':this.profile}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined})}catch(e){throw new Error(e.name==='TimeoutError'?'The backend took too long. Please try again.':'Could not connect. Check your internet connection.')}
+  let response;try{response=await fetch(this.base+path,{method,signal:signal??AbortSignal.timeout(18000),headers:{Authorization:accessCode?'Bearer '+accessCode:'Device '+(this.device?.token??''),...(this.profile?{'X-Any-Profile':this.profile}:{}),...(this.household?{'X-Any-Household':this.household.id}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined})}catch(e){throw new Error(e.name==='TimeoutError'?'The backend took too long. Please try again.':'Could not connect. Check your internet connection.')}
   const value=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(value.error||`Request failed (${response.status})`);error.status=response.status;throw error}return value;
  }
  async connect(code){this.device=await this.request('/v1/shared/devices',{method:'POST',body:{},accessCode:code.trim()});write('any.device',this.device);this.profile=null;write('any.profile',null);return this.bootstrap()}
- async bootstrap(){if(!this.device)return;const data=await this.request('/v1/shared/bootstrap',{method:'POST',body:{profiles:[]}});this.profiles=data.profiles;if(this.profile&&this.profiles.some(p=>p.id===this.profile))await this.select(this.profile);else this.profile=null;this.notify()}
- async refreshProfiles(){this.profiles=(await this.request('/v1/shared/profiles')).profiles;this.notify()}
+ async bootstrap(){if(!this.device)return;const data=await this.request('/v1/shared/bootstrap',{method:'POST',body:{profiles:[]}});this.household=data.household||null;write('any.household',this.household);this.profiles=data.profiles;this.guest=false;if(this.household&&this.profile&&this.profiles.some(p=>p.id===this.profile))await this.select(this.profile);else {this.profile=null;write('any.profile',null)}this.notify()}
+ async changeHousehold(code=null){await this.flush();const result=await this.request('/v1/shared/household/'+(code===null?'create':'join'),{method:'POST',body:code===null?{}:{code}});this.stopLive();this.device=result.device;this.household=result.household;this.profile=null;this.guest=false;this.profiles=result.profiles;this.parties=[];this.online=[];this.library={saved:[],progress:[],feedback:[]};this.status='Connected';write('any.device',this.device);write('any.household',this.household);write('any.profile',null);this.notify();return this.household}
+ async refreshProfiles(){const token=this.device?.token;const data=await this.request('/v1/shared/profiles');if(token!==this.device?.token)return;this.profiles=data.profiles;this.notify()}
  async editProfile(profile,body){await this.request('/v1/shared/profiles'+(profile?'/'+profile.id:''),{method:profile?'PUT':'POST',body});await this.refreshProfiles()}
  async deleteProfile(id){await this.request('/v1/shared/profiles/'+id,{method:'DELETE'});if(id===this.profile){this.stopLive();this.profile=null;write('any.profile',null);this.library={saved:[],progress:[],feedback:[]}}await this.refreshProfiles()}
  selectGuest(){this.stopLive();this.guest=true;this.profile="guest";this.library={saved:[],progress:[],feedback:[]};this.parties=[];this.status="Guest";this.notify()}
@@ -43,7 +44,7 @@ export class AnyApi extends EventTarget {
   }
   return null;
  }
- async refreshParties(){if(this.guest)return [];const data=await this.request('/v1/shared/parties');this.parties=data.parties||[];this.sources=data.sources||this.sources;this.notify();return this.parties}
+ async refreshParties(){if(this.guest)return [];const token=this.device?.token,profile=this.profile;const data=await this.request('/v1/shared/parties');if(token!==this.device?.token||profile!==this.profile||this.guest)return [];this.parties=data.parties||[];this.sources=data.sources||this.sources;this.notify();return this.parties}
  async command(action,fields={}){if(this.guest)throw Error("Choose a profile to use Together.");const result=await this.request('/v1/shared/commands',{method:'POST',body:{id:crypto.randomUUID(),action,...fields}});if(['create','join','leave','decline'].includes(action))await this.refreshParties().catch(()=>{});return result}
  send(value){if(this.ws?.readyState===1)this.ws.send(JSON.stringify(value))}
  serverNow(){return Date.now()+this.offset}
@@ -52,10 +53,10 @@ export class AnyApi extends EventTarget {
   try{const {ticket}=await this.request('/v1/shared/live-ticket',{method:'POST',body:{}});if(generation!==this.generation)return;const ws=new WebSocket(this.base.replace(/^http/,'ws')+'/v1/shared/live?ticket='+encodeURIComponent(ticket));this.ws=ws;
    ws.onopen=()=>{if(generation!==this.generation){ws.close();return}this.retries=0;this.status='Connected';this.notify();this.flush().catch(()=>{});clearInterval(this.pingTimer);const ping=()=>this.send({type:'ping',sent:Date.now()});ping();this.pingTimer=setInterval(ping,5000)};
    ws.onmessage=({data})=>{if(generation!==this.generation)return;let value;try{value=JSON.parse(data)}catch{return}if(value.type==='snapshot'){this.parties=value.parties;this.profiles=value.profiles;this.sources=value.sources;this.online=value.online;this.notify()}else if(value.type==='pong'){const received=Date.now();if(received-value.sent<3000)this.offset=value.serverNow-(received+value.sent)/2}else if(value.type==='library')this.refreshLibrary().catch(()=>{});else if(value.type==='error'){this.dispatchEvent(new CustomEvent('notice',{detail:value.error}))}};
-   ws.onerror=()=>{};ws.onclose=e=>{if(generation!==this.generation)return;clearInterval(this.pingTimer);if(e.code===4001){this.status='Connection moved or profile changed. Select a profile to reconnect.';this.refreshProfiles().then(()=>{if(!this.profiles.some(p=>p.id===this.profile)){this.profile=null;write('any.profile',null);this.library={saved:[],progress:[],feedback:[]};this.notify()}}).catch(error=>{if(error.status===401){this.device=null;this.profile=null;localStorage.removeItem('any.device');localStorage.removeItem('any.profile');this.notify()}});this.notify();return}this.reconnect(generation)};
+   ws.onerror=()=>{};ws.onclose=e=>{if(generation!==this.generation)return;clearInterval(this.pingTimer);if(e.code===4001){this.status='Connection moved or profile changed. Select a profile to reconnect.';this.refreshProfiles().then(()=>{if(!this.profiles.some(p=>p.id===this.profile)){this.profile=null;write('any.profile',null);this.library={saved:[],progress:[],feedback:[]};this.notify()}}).catch(error=>{if(error.status===401){this.device=null;this.profile=null;this.household=null;localStorage.removeItem('any.household');localStorage.removeItem('any.device');localStorage.removeItem('any.profile');this.notify()}});this.notify();return}this.reconnect(generation)};
   }catch{if(generation===this.generation)this.reconnect(generation)}
  }
  reconnect(generation){this.status='Reconnecting…';this.notify();this.retryTimer=setTimeout(()=>{if(generation===this.generation)this.startLive()},Math.min(30000,1000*2**Math.min(this.retries++,5)))}
- async signOut(){await this.flush();await this.request('/v1/shared/device',{method:'DELETE'});this.stopLive();this.device=null;this.profile=null;this.library={saved:[],progress:[],feedback:[]};localStorage.removeItem('any.device');localStorage.removeItem('any.profile');this.notify()}
+ async signOut(){await this.flush();await this.request('/v1/shared/device',{method:'DELETE'});this.stopLive();this.device=null;this.profile=null;this.household=null;this.library={saved:[],progress:[],feedback:[]};localStorage.removeItem('any.household');localStorage.removeItem('any.device');localStorage.removeItem('any.profile');this.notify()}
 }
 export const api=new AnyApi();
