@@ -5,7 +5,7 @@ const {allowedPlayerURL,playerCommand,bounds,validSample}=require('./policy.cjs'
 const {installVideoBridge}=require('./video-bridge.cjs');
 const WORLD=1001;
 class PlayerHost{
- constructor(win,{emit,key}={}){this.win=win;this.emit=emit||((data)=>win.webContents.send('any:player-event',data));this.key=key||((data)=>win.webContents.send('any:player-key',data));this.current=null;const resize=()=>{if(this.current?.boundsInput)this.setBounds(this.current.boundsInput);};win.on('resize',resize);win.on('enter-full-screen',resize);win.on('leave-full-screen',resize);}
+ constructor(win,{emit,key}={}){this.win=win;this.emit=emit||((data)=>win.webContents.send('any:player-event',data));this.key=key||((data)=>win.webContents.send('any:player-key',data));this.current=null;const resize=()=>{if(this.current?.boundsInput)this.setBounds(this.current.boundsInput);};win.on('resize',resize);win.on('enter-full-screen',resize);win.on('leave-full-screen',resize);win.on('blur',()=>{if(this.current)this.key({session:this.current.spec.session,type:'cancel'});});}
  async open(spec){
   this.close();const ses=session.fromPartition('any-player-'+randomUUID());
   ses.setPermissionRequestHandler((_w,_p,callback)=>callback(false));ses.setPermissionCheckHandler(()=>false);
@@ -23,8 +23,8 @@ class PlayerHost{
   wc.on('did-fail-load',(_event,code,_description,_url,main)=>{if(main&&code!==-3)this.notify(current,{kind:'error',message:'The source could not load. Reload the player or choose another source.'});});
   wc.on('render-process-gone',()=>{this.notify(current,{kind:'error',message:'The video process stopped. Reload the player.'});this.close(spec.session);});
   wc.on('before-input-event',(event,input)=>{
-   if(input.type!=='keyDown'||input.control||input.meta||input.alt)return;
-   if([' ','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape','Tab'].includes(input.key)){event.preventDefault();this.key({session:spec.session,key:input.key});}
+   if(!['keyDown','keyUp'].includes(input.type)||input.control||input.meta||input.alt)return;
+   if([' ','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape','Tab'].includes(input.key)){event.preventDefault();this.key({session:spec.session,key:input.key,type:input.type==='keyUp'?'keyup':'keydown',repeat:!!input.isAutoRepeat});}
   });
   let lastPointer=0,lastPointerPosition='';
   wc.on('before-mouse-event',(_event,mouse)=>{

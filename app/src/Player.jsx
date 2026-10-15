@@ -7,11 +7,14 @@ import {useAsync,go} from './catalogue.jsx';
 import {watchLink,Episodes} from './Details.jsx';
 import {Avatar,Button,Spinner,Modal,Empty} from './ui.jsx';
 import {FinishTime} from './Experience.jsx';
+import {HeldSeek} from './held-seek.js';
 import {playbackIssue} from './experience-model.js';
 export function PlayerPage({type,id,params,settings,onError}){const [reload,setReload]=useState(0),checkpoint=useRef(null);const partyId=params.get('party'),party=api.parties.find(p=>p.id===partyId),source=party?.source||params.get('source')||settings.source,s=party?.season||Math.max(1,Number(params.get('s'))||1),e=party?.episode||Math.max(1,Number(params.get('e'))||1),epoch=party?.epoch||0;const title=useAsync(()=>api.tmdb(`${type}/${id}`).then(t=>titleOf(t,type)),[type,id]);useEffect(()=>{if(!partyId)return;return()=>{api.command('leave',{partyId}).catch(()=>{})}},[partyId]);if(title.loading)return <div className="page-loader"><Spinner/></div>;if(title.error)return <Empty title="Playback unavailable">{title.error}</Empty>;if(partyId&&!party)return <Empty title="Finding your party…">{api.status==='Connected'?'If the invitation has ended, return to Together.':'Waiting to reconnect to ANY.'}<Button onClick={()=>go('/together')}>Together</Button></Empty>;const member=party?.members.find(m=>m.profileId===api.profile);if(party&&(party.ended||!member?.onThisDevice||member.status!=='joined'))return <Empty title="You’re no longer in this party"><Button onClick={()=>go('/together')}>Back to Together</Button></Empty>;if(party&&!(desktopBridge()?desktopPartySupported(source):sourceById(source).controls))return <Empty title="Switch this party to a web-compatible source"><Button onClick={()=>go('/together')}>Choose source & join</Button></Empty>;return <Player key={`${id}:${source}:${s}:${e}:${epoch}:${reload}`} onReload={position=>{checkpoint.current={key:`${type}:${id}:${s}:${e}`,position};setReload(v=>v+1)}} title={title.data} source={source} season={s} episode={e} party={party} settings={settings} position={party?party.position:checkpoint.current?.key===`${type}:${id}:${s}:${e}`?checkpoint.current.position:Number(params.get('pos'))||0} onError={onError}/>}
 function Player({title,source,season,episode,party,position,onError,onReload}) {
  const desktop=desktopBridge(),nativeSession=useRef(crypto.randomUUID()),stage=useRef();
  const iframe=useRef(),root=useRef(),sync=useRef(),partyRef=useRef(party);
+ const seeking=useRef(new HeldSeek()),[seekPreview,setSeekPreview]=useState(null);
+ const cancelSeek=()=>{seeking.current.cancel();setSeekPreview(null)};
  const statsRef=useRef({position:0,duration:0,playing:false}),origin=useRef(sourceById(source).base);
  const learnedOrigin=useRef(false),protocol=useRef(false),probe=useRef(0),resume=useRef(false),lastSave=useRef(0),lastProgress=useRef(null);
  const [stats,setStats]=useState(statsRef.current),[controls,setControls]=useState(true),[episodes,setEpisodes]=useState(false);
@@ -86,9 +89,19 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
   const visibility=()=>{if(document.hidden)save()};document.addEventListener('visibilitychange',visibility);
   return()=>{unsubscribe?.();if(desktop)desktop.closePlayer(nativeSession.current).catch(()=>{});window.removeEventListener('message',receive);clearInterval(timer);clearTimeout(warning);document.removeEventListener('visibilitychange',visibility);save();sync.current=null};
  },[]);
+ const member=party?.members.find(m=>m.profileId===api.profile);
+ const canControl=stats.duration>0&&protocol.current&&(!party||(local.ready&&member?.ready))&&(!party||api.status==='Connected');
  useEffect(()=>{
   const key=e=>{
-   if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;
+   const seekKey=['ArrowLeft','ArrowRight'].includes(e.key);
+   if(e.type==='keyup'){
+    if(!canControl){cancelSeek();return;}
+    if(seeking.current.key!==null&&seekKey){e.preventDefault();seeking.current.handle({key:e.key,type:'keyup',timeStamp:performance.now()},statsRef.current.position,statsRef.current.duration,target=>command('seek',{position:target}));setSeekPreview(seeking.current.preview);}
+    return;
+   }
+   if(['INPUT','SELECT','TEXTAREA'].includes(e.target?.tagName)&&!(seekKey&&e.target?.type==='range'))return;
+   if(!seekKey)cancelSeek();
+   if(e.repeat&&['Enter',' ','Escape','Tab'].includes(e.key))return;
    if(showNext&&document.activeElement===nextButton.current){
     if(e.fromPlayer&&['Enter',' '].includes(e.key)){e.preventDefault();advance();return;}
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();nextButton.current.blur();root.current?.focus({preventScroll:true});revealControls.current();setControls(true);return;}
@@ -99,17 +112,19 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
    else if((e.key===' '||e.key==='Enter')&&e.target.tagName!=='BUTTON'){
     e.preventDefault();if(partyRef.current&&!sync.current?.ready)activate();
     else if(protocol.current)command(statsRef.current.playing?'pause':'play');
-   }else if(protocol.current&&(!partyRef.current||sync.current?.ready)&&['ArrowLeft','ArrowRight'].includes(e.key)&&e.target.tagName!=='BUTTON'){
+   }else if(canControl&&['ArrowLeft','ArrowRight'].includes(e.key)&&e.target.tagName!=='BUTTON'){
     revealControls.current();
-    e.preventDefault();command('skip',{delta:e.key==='ArrowLeft'?-10:10});
+    e.preventDefault();
+    if(e.fromPlayer&&desktop?.heldSeekVersion!==1){command('skip',{delta:e.key==='ArrowLeft'?-10:10});return;}
+    seeking.current.handle({key:e.key,type:'keydown',repeat:e.repeat,timeStamp:performance.now()},statsRef.current.position,statsRef.current.duration,target=>command('seek',{position:target}));setSeekPreview(seeking.current.preview);
    }
-  };window.addEventListener('keydown',key);const off=desktop?.onPlayerKey(message=>{if(message.session===nativeSession.current)key({key:message.key,target:root.current,fromPlayer:true,preventDefault:()=>{}});});return()=>{off?.();window.removeEventListener('keydown',key);};
- },[controls,episodes,subtitlesOpen,showNext,next,nextBusy]);
- const playing=party?local.playing:stats.playing,positionNow=stats.position;
- const member=party?.members.find(m=>m.profileId===api.profile);
- const canControl=stats.duration>0&&protocol.current&&(!party||(local.ready&&member?.ready))&&(!party||api.status==='Connected');
+  };window.addEventListener('keydown',key);window.addEventListener('keyup',key);const off=desktop?.onPlayerKey(message=>{if(message.session!==nativeSession.current)return;if(message.type==='cancel'){cancelSeek();return;}key({key:message.key,type:message.type||'keydown',repeat:message.repeat||false,target:root.current,fromPlayer:true,preventDefault:()=>{}});});return()=>{off?.();window.removeEventListener('keydown',key);window.removeEventListener('keyup',key);};
+ },[controls,episodes,subtitlesOpen,showNext,next,nextBusy,canControl]);
+ const playing=party?local.playing:stats.playing,positionNow=seekPreview??stats.position;
  const waiting=party&&(!local.ready||!member?.ready),showHelp=!!recovery||loadFailed||(waited&&(!ready||waiting))||local.phase==='blocked';
- const showChrome=desktop?(!nativeAutoHide||controls||waiting||showHelp||episodes||subtitlesOpen||switching||confirmed):(controls||waiting);
+ const showChrome=desktop?(!nativeAutoHide||seekPreview!==null||controls||waiting||showHelp||episodes||subtitlesOpen||switching||confirmed):(seekPreview!==null||controls||waiting);
+ useEffect(()=>{if(!canControl||episodes||subtitlesOpen||switching||confirmed)cancelSeek();},[canControl,episodes,subtitlesOpen,switching,confirmed]);
+ useEffect(()=>{const hide=()=>{if(document.hidden)cancelSeek()};window.addEventListener('blur',cancelSeek);document.addEventListener('visibilitychange',hide);return()=>{seeking.current.cancel();window.removeEventListener('blur',cancelSeek);document.removeEventListener('visibilitychange',hide);};},[]);
  useEffect(()=>{
   if(!nativeAutoHide)return;
   const hide=()=>{if(pointerOnControls.current||root.current?.querySelector('.player-controls :focus-visible,.player-top :focus-visible'))return;if(document.activeElement!==nextButton.current)root.current?.focus({preventScroll:true});setControls(false)};
@@ -148,7 +163,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
    {!party&&stats.duration<=0&&loadingAge>=7&&!showHelp&&<div className="opening-video" role="status"><Spinner/><span>{loadingAge>=18?'Taking longer than usual…':'Opening video…'}</span></div>}
    {waiting&&<div className="party-start" role="status"><p>{waitingText}</p>{local.phase==='blocked'&&local.failure==='start-failed'&&<Button tone="red" icon="play" disabled={api.status!=='Connected'} onClick={activate}>Retry playback</Button>}</div>}
    <div className="timeline"><span>{clock(positionNow)}</span><input aria-label="Playback position" type="range" min="0" max={stats.duration||1} step="1" value={Math.min(positionNow,stats.duration||1)} disabled={!canControl} onChange={e=>command('seek',{position:Number(e.target.value)})}/><span>{clock(stats.duration)}</span></div>
-   <div className="playback-meta"><FinishTime position={positionNow} duration={stats.duration}/></div>
+   <div className="playback-meta">{seekPreview!==null?<span className="seek-hint">Release to seek</span>:<FinishTime position={positionNow} duration={stats.duration}/>}</div>
    <div className="player-actions">
     <Button icon={playing?'pause':'play'} disabled={!canControl} aria-label={playing?'Pause':'Play'} onClick={()=>command(playing?'pause':'play')}/>
     <Button disabled={!canControl} onClick={()=>command('skip',{delta:-10})}>−10s</Button><Button disabled={!canControl} onClick={()=>command('skip',{delta:10})}>+10s</Button><Button icon="restart" disabled={!canControl} aria-label="Start over" onClick={()=>command('restart')}/>

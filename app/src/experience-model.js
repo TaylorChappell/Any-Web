@@ -45,3 +45,5 @@ export function playbackIssue({started,now=Date.now(),lastReport=now,lastAdvance
  if(duration>0&&playing&&(now-lastReport>15000||now-lastAdvance>25000))return 'Playback stopped responding';
  return null;
 }
+
+export function seriesStatus(status){return ({'returning series':'Series ongoing','in production':'Series ongoing',canceled:'Series cancelled',cancelled:'Series cancelled',ended:'Series ended',planned:'Series upcoming',pilot:'Series upcoming'})[String(status||'').trim().toLowerCase()]||'';}

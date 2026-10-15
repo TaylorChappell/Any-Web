@@ -1,11 +1,9 @@
-# ANY Desktop 0.4.2
+# ANY Desktop 0.4.3
 
-- Upcoming episodes show their announced air date, or “Date to be announced”. They cannot start playback before that date.
-- Series posters can show compact New episode or New season badges, including recommendations.
-- The notification bell follows shows you watch or save. Open an alert to go to its season, mark alerts read, or mute individual shows.
-- Read and mute settings belong to the selected profile and sync with the TV app. Guest viewing does not create notifications.
-- Shared schedules refresh in the background every six hours using the existing TMDB connection.
+- Hold left or right to seek faster over time. A tap still moves ten seconds; the timeline previews your position and applies one seek when you release. Reversing direction resets the speed.
+- Series cast and creators now follow the episode list.
+- A compact Series ongoing, Series cancelled or Series ended label sits below the language. The old remaining-episode status line is removed.
+- Each unreleased episode keeps its own announced release date, or Date to be announced.
+- Includes the previous release's profile notification bell, New episode / New season badges and per-show alert settings.
 
-Air dates describe the announced release schedule; they do not confirm a streaming source can play an episode. No additional API key is required.
-
-The TV companion release is 0.3.2-preview.
+The TV companion release is 0.3.3-preview. No new backend variables or API keys are needed.

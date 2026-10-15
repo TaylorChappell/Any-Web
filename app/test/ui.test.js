@@ -11,7 +11,7 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  const dom=new JSDOM('<!doctype html><div id="root"></div>',{url:'https://taylorchappell.github.io/Any-Web/#/home',pretendToBeVisual:true});
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,localStorage:dom.window.localStorage,location:dom.window.location,EventTarget:dom.window.EventTarget,Event:dom.window.Event,CustomEvent:dom.window.CustomEvent,IS_REACT_ACT_ENVIRONMENT:true,matchMedia:()=>({matches:false})});window.scrollTo=()=>{};
  const nativeCommands=[],nativeOpens=[],nativeEvents=new Set(),nativeKeys=new Set(),nativeBounds=[];
- if(native){globalThis.ResizeObserver=class{observe(){}disconnect(){}};window.anyDesktop={protocolVersion:1,playbackLayoutVersion:1,version:'0.3.2',openPlayer:async input=>{nativeOpens.push(input);return {session:input.session}},closePlayer:async()=>{},playerCommand:async input=>{nativeCommands.push(input);return true},setPlayerBounds:async input=>{nativeBounds.push(input);return true},fullscreen:async()=>true,onPlayerEvent:cb=>{nativeEvents.add(cb);return()=>nativeEvents.delete(cb)},onPlayerKey:cb=>{nativeKeys.add(cb);return()=>nativeKeys.delete(cb)}};}
+ if(native){globalThis.ResizeObserver=class{observe(){}disconnect(){}};window.anyDesktop={protocolVersion:1,heldSeekVersion:1,playbackLayoutVersion:1,version:'0.3.2',openPlayer:async input=>{nativeOpens.push(input);return {session:input.session}},closePlayer:async()=>{},playerCommand:async input=>{nativeCommands.push(input);return true},setPlayerBounds:async input=>{nativeBounds.push(input);return true},fullscreen:async()=>true,onPlayerEvent:cb=>{nativeEvents.add(cb);return()=>nativeEvents.delete(cb)},onPlayerKey:cb=>{nativeKeys.add(cb);return()=>nativeKeys.delete(cb)}};}
  if(native){const updates=new Set();let updateState={status:'idle',currentVersion:'0.3.1'};const change=s=>{updateState={...updateState,...s};updates.forEach(cb=>cb(updateState));return updateState};Object.assign(window.anyDesktop,{updateStatus:async()=>updateState,onUpdate:cb=>{updates.add(cb);return()=>updates.delete(cb)},checkForUpdates:async()=>change({status:'available',version:'0.3.2'}),downloadUpdate:async()=>change({status:'downloaded'}),installUpdate:async()=>change({status:'installing'})});}
  const liveMessages=[],requests=[],profile={id:'profile-one',name:'Taylor',avatar:0},library={saved:[],progress:[],feedback:[]};let selected=false,parties=[],joinedHousehold=native;
  let noticeRead=false,alertsMuted=false,releaseSeason;
@@ -32,7 +32,7 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
   else if(u.pathname.endsWith('/live-ticket'))data={ticket:'test-ticket'};
   else if(u.pathname.includes('/v1/collections/mcu'))data={id:-1,name:'Marvel Cinematic Universe',parts:[{...film,collection_category:'film'}],missing_count:0};
   else if(u.pathname.endsWith('/tonight'))data={titles:[{...film,tonight_reason:'120 minutes · Picked for your profiles'}]};
-  else if(u.pathname.endsWith('/tv/777'))data={...film,id:777,media_type:'tv',title:'Test Series',seasons:[{season_number:1},{season_number:2}]};
+  else if(u.pathname.endsWith('/tv/777'))data={...film,id:777,media_type:'tv',title:'Test Series',status:'Canceled',next_episode_to_air:{air_date:'2099-10-23'},seasons:[{season_number:1},{season_number:2}]};
   else if(u.pathname.includes('/tv/777/season/')){if(u.pathname.endsWith('/2'))await new Promise(resolve=>{releaseSeason=resolve});data={episodes:[{id:1,episode_number:1,name:'Episode one',air_date:u.pathname.endsWith('/1')?'2020-01-01':'2099-01-01'},{id:2,episode_number:2,name:'Episode two',air_date:u.pathname.endsWith('/1')?'2020-01-02':'2099-01-02'},{id:3,episode_number:3,name:'Coming soon',air_date:'2099-10-23'},{id:4,episode_number:4,name:'Unannounced',air_date:null}]};}
   else if(u.pathname.endsWith('/person/900/combined_credits'))data={cast:[film],crew:[]};
   else if(u.pathname.endsWith('/person/900'))data={id:900,name:'Test Actor',profile_path:'/actor.jpg'};
@@ -54,6 +54,10 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  await act(async()=>document.querySelector('.release-open').click());await wait(()=>document.querySelector('.episode-section'));
  assert.match(location.hash,/tv\/777\?season=1/);assert.equal(noticeRead,true);assert.equal(document.querySelector('.release-bell .badge'),null);
  await wait(()=>document.querySelectorAll('.episode').length===4);
+ assert.equal(document.querySelector('.series-status').textContent,'Series cancelled');
+ assert.equal(document.querySelector('.series-status').previousElementSibling.className,'credit-facts');
+ assert.equal(document.querySelector('.detail-information .series-status'),null);
+ assert.ok(document.querySelector('.episode-section').compareDocumentPosition(document.querySelector('.people-section'))&window.Node.DOCUMENT_POSITION_FOLLOWING,'cast follows episodes');
  const upcoming=[...document.querySelectorAll('.episode')].find(e=>e.textContent.includes('Coming soon'));assert.equal(upcoming.disabled,true);assert.match(upcoming.textContent,/Releases 23 Oct 2099/);
  assert.match([...document.querySelectorAll('.episode')].find(e=>e.textContent.includes('Unannounced')).textContent,/Date to be announced/);
  await act(()=>{const select=document.querySelector('[aria-label="Season"]');select.value='2';select.dispatchEvent(new window.Event('change',{bubbles:true}))});await wait(()=>releaseSeason);
@@ -122,6 +126,19 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
   const session=nativeOpens.at(-1).session;
   const soloStatus=playing=>{for(const cb of nativeEvents)cb({session,kind:'status',data:{event:'playerstatus',position:15,duration:7200,playing,playable:true,controllable:true}})};
   await act(async()=>soloStatus(true));
+  const seekCount=()=>nativeCommands.filter(c=>c.command==='seek').length,beforeSeek=seekCount();
+  await act(async()=>{for(const cb of nativeKeys)cb({session,key:'ArrowRight',type:'keydown',repeat:false})});
+  assert.equal(document.querySelector('.timeline input').value,'25');assert.equal(seekCount(),beforeSeek,'holding only moves the preview');
+  await act(async()=>{for(const cb of nativeKeys)cb({session,key:'ArrowRight',type:'keyup'})});
+  assert.equal(seekCount(),beforeSeek+1);assert.equal(nativeCommands.filter(c=>c.command==='seek').at(-1).time,25);
+  await act(async()=>{for(const cb of nativeKeys)cb({session,key:'ArrowLeft',type:'keydown',repeat:false});for(const cb of nativeKeys)cb({session,type:'cancel'});for(const cb of nativeKeys)cb({session,key:'ArrowLeft',type:'keyup'})});
+  assert.equal(seekCount(),beforeSeek+1,'window blur cancels an uncommitted seek');
+  const range=document.querySelector('.timeline input');
+  await act(async()=>range.dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true,cancelable:true})));
+  assert.equal(seekCount(),beforeSeek+1);
+  await act(async()=>range.dispatchEvent(new window.KeyboardEvent('keyup',{key:'ArrowRight',bubbles:true,cancelable:true})));
+  assert.equal(seekCount(),beforeSeek+2,'focused timeline keys also commit only on release');
+
   await act(async()=>{await new Promise(r=>setTimeout(r,3200))});
   assert.ok(document.querySelector('.desktop-player.cinema-mode'),'active playback hides idle controls');
   assert.equal(document.querySelector('.player-top'),null);assert.equal(nativeBounds.at(-1).fillWindow,true);

@@ -16,8 +16,8 @@ async function run(){
    await win.loadURL(origin+'/any-ui');let peer={win,events:[],ready:false};
    peer.control=input=>i===0?win.webContents.executeJavaScript(`window.anyDesktop.playerCommand(${JSON.stringify(input)})`):peer.host.command(input);
    peer.sync=new PartySync({now:Date.now,sendPlayer:(command,time)=>peer.control({session:peer.id,command,...(time===undefined?{}:{time})}).catch(()=>{}),sendStatus:s=>{peer.ready=s.ready;},command:(...args)=>unexpected.push(args)});
-   peer.host=new PlayerHost(win,{emit:message=>{if(i===0)win.webContents.send('any:player-event',message);if(message.kind==='error')throw Error(message.message);if(message.kind==='status'){peer.events.push(message.data);peer.sync.event(message.data);}},key:()=>{}});
-   if(i===0){removeBridge=registerWindowBridge(win,peer.host,{isTrusted:url=>new URL(url).origin===origin});await win.webContents.executeJavaScript('window.nativeMessages=0;window.nativePointers=0;window.anyDesktop.onPlayerEvent(m=>{window.nativeMessages++;if(m.kind==="pointer")window.nativePointers++});true');}
+   peer.host=new PlayerHost(win,{emit:message=>{if(i===0)win.webContents.send('any:player-event',message);if(message.kind==='error')throw Error(message.message);if(message.kind==='status'){peer.events.push(message.data);peer.sync.event(message.data);}},key:message=>{if(i===0)win.webContents.send('any:player-key',message);}});
+   if(i===0){removeBridge=registerWindowBridge(win,peer.host,{isTrusted:url=>new URL(url).origin===origin});await win.webContents.executeJavaScript('window.nativeKeys=[];window.anyDesktop.onPlayerKey(m=>window.nativeKeys.push(m));window.nativeMessages=0;window.nativePointers=0;window.anyDesktop.onPlayerEvent(m=>{window.nativeMessages++;if(m.kind==="pointer")window.nativePointers++});true');}
    peer.id='native-fixture-session-'+i;peer.sync.update(room);peers.push(peer);
    await peer.host.open({source:'movish',type:'movie',id:1,season:1,episode:1,start:3,party:true,session:peer.id,origins:[origin],path:'/player/movie/1',url:origin+'/player/movie/1'});
    peer.host.setBounds({session:peer.id,x:0,y:0,width:640,height:360,visible:true});
@@ -47,6 +47,11 @@ async function run(){
   layoutPeer.win.setFullScreen(false);await until(()=>!layoutPeer.win.isFullScreen(),'leave fullscreen');await fits(layoutPeer);
   layoutPeer.win.focus();layoutPeer.host.current.view.webContents.focus();layoutPeer.host.current.view.webContents.sendInputEvent({type:'mouseMove',x:55,y:65});
   await until(async()=>await layoutPeer.win.webContents.executeJavaScript('window.nativePointers>0'),'pointer activity reaches the UI while native video covers it');
+  assert.equal(await layoutPeer.win.webContents.executeJavaScript('window.anyDesktop.heldSeekVersion'),1);
+  for(const type of ['keyDown','keyUp'])layoutPeer.host.current.view.webContents.sendInputEvent({type,keyCode:'Right'});
+  await until(async()=>await layoutPeer.win.webContents.executeJavaScript('window.nativeKeys.some(m=>m.key==="ArrowRight"&&m.type==="keyup")'),'native key release reaches the UI');
+  const seekKeys=await layoutPeer.win.webContents.executeJavaScript('window.nativeKeys.filter(m=>m.key==="ArrowRight")');
+  assert.deepEqual(seekKeys.map(m=>m.type),['keydown','keyup']);assert.ok(seekKeys.every(m=>m.session===layoutPeer.id));
   const captionsPeer=peers[0];
   await captionsPeer.host.current.view.webContents.executeJavaScript("(()=>{const v=document.querySelector('video');v.addTextTrack('subtitles','English','en');v.addTextTrack('subtitles','English SDH','en');return true})()");
   await until(()=>captionsPeer.events.at(-1)?.subtitles?.length===2,'actual native subtitle tracks are reported');
