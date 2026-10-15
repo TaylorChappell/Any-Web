@@ -1,3 +1,10 @@
+# Web / Desktop 0.4.2 — 15 October 2026
+
+- 43 frontend tests pass, including browser and desktop notification flows, correct-season links, unread clearing, mute/unmute, profile headers, future-episode blocking, unknown dates, London date boundaries and stale-response rejection.
+- Production Vite build passes. Backend 0.3.2 has 48 passing tests, including shared schedule caching, persistence, private read/mute state, newly aired episodes, failed-metadata backoff and household isolation.
+- Release metadata comes from TMDB and does not guarantee a source can play an episode. No extra API key or ratings quota is used. The background refresh is six-hourly; notifications are in-app and profile-specific.
+- Windows CI remains the release gate for native integration, installer generation and installed-app/update smoke checks. Physical Sony Bravia remote behaviour requires a device check.
+
 # Desktop 0.3.0 / Interface 0.3.0 / Backend 0.2.6
 
 - 28 frontend tests pass, including both browser and desktop joins, native Movish

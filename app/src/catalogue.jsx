@@ -1,5 +1,6 @@
 import React,{useState,useEffect,useRef} from 'react';
 import {createPortal} from 'react-dom';
+import {SeriesBadge} from './Releases.jsx';
 import {api} from './api.js';
 import {images,titleOf,keyOf,fromItem,continueWatching,recommendationSeeds,favouriteGenres,seasonal,FRANCHISES,duration,clock,collectionKey,releasedCollection} from './model.js';
 import {Avatar,Button,Icon,Spinner,Empty} from './ui.jsx';
@@ -25,7 +26,7 @@ export function Card({title,portrait=false,progress,sound=true}){
   onKeyDown={e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();if(!e.repeat)startHold()}}} onKeyUp={e=>{if(['Enter',' '].includes(e.key)){e.preventDefault();stopHold();open()}}}
   onMouseEnter={enter} onMouseLeave={()=>{stopHold();exit()}} onFocus={enter} onBlur={e=>{stopHold();if(!popup.current?.contains(e.relatedTarget))exit()}} aria-label={`${title.title}${title.collection_season?`, season ${title.collection_season}`:''}${progress?`, continue at ${clock(progress.position)}`:''}`}>
   {poster?<img src={poster} alt={title.title} loading="lazy" decoding="async"/>:<span className="poster-fallback"><Icon name="film" size={34}/>{title.title}</span>}
-  {experience?.watched(title)&&<span className="watched-badge" aria-label="Watched"><Icon name="check" size={16}/></span>}
+  <SeriesBadge title={title} anchor={anchor}/>{experience?.watched(title)&&<span className="watched-badge" aria-label="Watched"><Icon name="check" size={16}/></span>}
   {progress&&<span className="card-progress"><i style={{width:`${Math.min(100,progress.position/(progress.duration||1)*100)}%`}}/></span>}
  </button>{experience&&<Button className="card-quick" icon="dots" aria-label={`Quick actions for ${title.title}`} onClick={quick}/>}
  {progress&&<span className="continue-caption">{title.title}<small>{title.media_type==='tv'?`S${progress.season} · E${progress.episode} · `:''}{clock(progress.position)}</small></span>}

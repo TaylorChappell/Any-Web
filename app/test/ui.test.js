@@ -14,6 +14,9 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  if(native){globalThis.ResizeObserver=class{observe(){}disconnect(){}};window.anyDesktop={protocolVersion:1,playbackLayoutVersion:1,version:'0.3.2',openPlayer:async input=>{nativeOpens.push(input);return {session:input.session}},closePlayer:async()=>{},playerCommand:async input=>{nativeCommands.push(input);return true},setPlayerBounds:async input=>{nativeBounds.push(input);return true},fullscreen:async()=>true,onPlayerEvent:cb=>{nativeEvents.add(cb);return()=>nativeEvents.delete(cb)},onPlayerKey:cb=>{nativeKeys.add(cb);return()=>nativeKeys.delete(cb)}};}
  if(native){const updates=new Set();let updateState={status:'idle',currentVersion:'0.3.1'};const change=s=>{updateState={...updateState,...s};updates.forEach(cb=>cb(updateState));return updateState};Object.assign(window.anyDesktop,{updateStatus:async()=>updateState,onUpdate:cb=>{updates.add(cb);return()=>updates.delete(cb)},checkForUpdates:async()=>change({status:'available',version:'0.3.2'}),downloadUpdate:async()=>change({status:'downloaded'}),installUpdate:async()=>change({status:'installing'})});}
  const liveMessages=[],requests=[],profile={id:'profile-one',name:'Taylor',avatar:0},library={saved:[],progress:[],feedback:[]};let selected=false,parties=[],joinedHousehold=native;
+ let noticeRead=false,alertsMuted=false;
+ const releaseTitle={id:777,media_type:'tv',title:'Test Series',poster_path:'/poster.jpg'};
+ const releaseFeed=()=>({items:alertsMuted?[]:[{id:777,event:'777:1:2:2026-10-15',title:releaseTitle,label:'New episode',count:1,season:1,episode:2,airDate:'2026-10-15',unread:!noticeRead}],tracked:[{id:777,title:releaseTitle,muted:alertsMuted}],unread:noticeRead||alertsMuted?0:1});
  const film={id:550,title:'Test Film',media_type:'movie',overview:'A test description.',poster_path:'/poster.jpg',backdrop_path:'/backdrop.jpg',release_date:'2025-01-01',vote_average:8.2,runtime:120,genres:[{id:18,name:'Drama'}],recommendations:{results:[]},videos:{results:[]},credits:{cast:[{id:900,name:'Test Actor',profile_path:'/actor.jpg',character:'Lead'}],crew:[{id:901,name:'Test Director',job:'Director',profile_path:'/director.jpg'}]},vote_count:12400,original_language:'en'};
  globalThis.fetch=async(url,init={})=>{const u=new URL(url),body=init.body?JSON.parse(init.body):null;requests.push({path:u.pathname,headers:init.headers,body});let data={};
   if(u.pathname.endsWith('/devices'))data={id:'device-one',token:'test-device-session'};
@@ -22,13 +25,15 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
   else if(u.pathname.endsWith('/session')){selected=true;data={profileId:profile.id}}
   else if(u.pathname.endsWith('/library/changes')){for(const c of body.changes){library[c.collection]=[...library[c.collection].filter(v=>v.key!==c.key),...(c.value?[c.value]:[])]}data={accepted:body.changes.map(c=>c.id)}}
   else if(u.pathname.endsWith('/library'))data=library;
+  else if(u.pathname.endsWith('/releases')){if(body?.action==='read'||body?.action==='read-all')noticeRead=true;if(body?.action==='mute')alertsMuted=body.muted;data=releaseFeed()}
+  else if(u.pathname.endsWith('/releases/catalogue'))data={items:[{id:777,badge:'New episode'}]};
   else if(u.pathname.endsWith('/parties'))data={parties,sources:['vidfast']};
   else if(u.pathname.endsWith('/commands')){if(body.action==='join'){parties[0]={...parties[0],source:body.source||parties[0].source,epoch:2,members:parties[0].members.map(m=>m.profileId===profile.id?{...m,status:'joined',onThisDevice:true}:m)}}data={partyId:parties[0]?.id};}
   else if(u.pathname.endsWith('/live-ticket'))data={ticket:'test-ticket'};
   else if(u.pathname.includes('/v1/collections/mcu'))data={id:-1,name:'Marvel Cinematic Universe',parts:[{...film,collection_category:'film'}],missing_count:0};
   else if(u.pathname.endsWith('/tonight'))data={titles:[{...film,tonight_reason:'120 minutes · Picked for your profiles'}]};
   else if(u.pathname.endsWith('/tv/777'))data={...film,id:777,media_type:'tv',title:'Test Series',seasons:[{season_number:1},{season_number:2}]};
-  else if(u.pathname.includes('/tv/777/season/'))data={episodes:[{episode_number:1,name:'Episode one',air_date:u.pathname.endsWith('/1')?'2020-01-01':'2099-01-01'},{episode_number:2,name:'Episode two',air_date:u.pathname.endsWith('/1')?'2020-01-02':'2099-01-02'}]};
+  else if(u.pathname.includes('/tv/777/season/'))data={episodes:[{id:1,episode_number:1,name:'Episode one',air_date:u.pathname.endsWith('/1')?'2020-01-01':'2099-01-01'},{id:2,episode_number:2,name:'Episode two',air_date:u.pathname.endsWith('/1')?'2020-01-02':'2099-01-02'},{id:3,episode_number:3,name:'Coming soon',air_date:'2099-10-23'},{id:4,episode_number:4,name:'Unannounced',air_date:null}]};
   else if(u.pathname.endsWith('/person/900/combined_credits'))data={cast:[film],crew:[]};
   else if(u.pathname.endsWith('/person/900'))data={id:900,name:'Test Actor',profile_path:'/actor.jpg'};
   else if(u.pathname.includes('/v1/tmdb/'))data=u.pathname.match(/movie\/\d+$/)?{...film,id:Number(u.pathname.split('/').at(-1))}:u.pathname.includes('/videos')?{results:[]}:u.pathname.includes('genre/')?{genres:[{id:18,name:'Drama'}]}:u.pathname.includes('collection/')?{id:Number(u.pathname.split('/').at(-1)),name:'Test collection',parts:[film]}:{results:[film],total_pages:1};
@@ -43,6 +48,22 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
  assert.equal(document.querySelector('#access-code'),null);assert.equal(document.querySelector('input[type=password]'),null);
  assert.equal(localStorage.getItem('any.device').includes('testtest'),false,'only the device session is retained in storage');
  await act(async()=>document.querySelector('.profile-tile').click());await wait(()=>document.querySelector('.hero'));assert.equal(selected,true);
+ await wait(()=>document.querySelector('.release-bell .badge'));
+ await act(async()=>document.querySelector('.release-bell').click());await wait(()=>document.querySelector('.release-list .unread'));
+ assert.match(document.querySelector('.release-list').textContent,/New episode/);
+ await act(async()=>document.querySelector('.release-open').click());await wait(()=>document.querySelector('.episode-section'));
+ assert.match(location.hash,/tv\/777\?season=1/);assert.equal(noticeRead,true);assert.equal(document.querySelector('.release-bell .badge'),null);
+ await wait(()=>document.querySelectorAll('.episode').length===4);
+ const upcoming=[...document.querySelectorAll('.episode')].find(e=>e.textContent.includes('Coming soon'));assert.equal(upcoming.disabled,true);assert.match(upcoming.textContent,/Releases 23 Oct 2099/);
+ assert.match([...document.querySelectorAll('.episode')].find(e=>e.textContent.includes('Unannounced')).textContent,/Date to be announced/);
+ await act(()=>{const select=document.querySelector('[aria-label="Season"]');select.value='2';select.dispatchEvent(new window.Event('change',{bubbles:true}))});await wait(()=>document.querySelector('.episode')?.textContent.includes('Releases'));
+ assert.equal([...document.querySelectorAll('.detail-actions button')].find(b=>b.textContent.trim()==='Play').disabled,true);
+ await act(async()=>document.querySelector('.release-bell').click());await wait(()=>document.querySelector('.release-page'));
+ await act(async()=>[...document.querySelectorAll('.release-page button')].find(b=>b.textContent.includes('Manage alerts')).click());
+ await act(async()=>document.querySelector('[aria-label="Mute Test Series"]').click());await wait(()=>document.querySelector('[aria-label="Unmute Test Series"]'));assert.equal(alertsMuted,true);
+ await act(async()=>document.querySelector('[aria-label="Unmute Test Series"]').click());await wait(()=>document.querySelector('[aria-label="Mute Test Series"]'));assert.equal(alertsMuted,false);
+ assert.ok(requests.filter(r=>r.path.endsWith('/releases')&&r.body).every(r=>r.headers['X-Any-Profile']===profile.id));
+ await act(async()=>{location.hash='/home';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>document.querySelector('.hero'));
  await act(async()=>[...document.querySelectorAll('.franchise-shelf button')].find(b=>b.textContent.trim()==='View all').click());await wait(()=>document.querySelector('[aria-label="Explore Marvel Cinematic Universe"]'));
  await act(async()=>document.querySelector('[aria-label="Explore Marvel Cinematic Universe"]').click());await wait(()=>document.querySelector('.collection-detail'));
  assert.equal(document.querySelector('.collection-detail h1').textContent,'Marvel Cinematic Universe');

@@ -1,3 +1,4 @@
+import {releaseToday,validAirDate} from './release-model.js';
 import {titleFacts,hideContinueFilm} from './experience-model.js';
 export const keyOf=t=>`${t.media_type}:${t.id}`;
 export function titleOf(t,type){return {any_facts:titleFacts(t),collection_season:t.collection_season||0,collection_category:t.collection_category||"",id:t.id,media_type:t.media_type||type||'movie',title:t.title||t.name||'Untitled',overview:t.overview||'',poster_path:t.poster_path||'',backdrop_path:t.backdrop_path||'',release_date:t.release_date||t.first_air_date||'',vote_average:t.vote_average||0,runtime:t.runtime||t.episode_run_time?.[0]||0,genre_ids:t.genre_ids||t.genres?.map(g=>g.id)||[],genre_names:t.genre_names||t.genres?.map(g=>g.name).join(' · ')||'',cast_names:t.cast_names||t.credits?.cast?.slice(0,5).map(c=>c.name).join(', ')||'',season_numbers:t.seasons?.filter(s=>s.season_number>0).map(s=>s.season_number)||t.season_numbers||[],belongs_to_collection:t.belongs_to_collection||null}}
@@ -23,4 +24,4 @@ export const CROPS=[[5,50,195],[25,0,180],[135,85,175],[5,75,180],[103,183,145],
 export const collectionKey=t=>`${keyOf(t)}:${t.collection_season||0}`;
 export function releasedCollection(parts,date=new Date().toISOString().slice(0,10)){return [...new Map(parts.filter(t=>!t.adult&&t.release_date&&t.release_date<=date).map(t=>[collectionKey(t),t])).values()].sort((a,b)=>a.release_date.localeCompare(b.release_date)||a.id-b.id||(a.collection_season||0)-(b.collection_season||0))}
 
-export const releasedEpisode=(e,today=new Date().toISOString().slice(0,10))=>Number.isInteger(e.episode_number)&&e.episode_number>0&&/^\d{4}-\d{2}-\d{2}$/.test(e.air_date||'')&&e.air_date<=today;
+export const releasedEpisode=(e,today=releaseToday())=>Number.isInteger(e.episode_number)&&e.episode_number>0&&validAirDate(e.air_date)&&e.air_date<=today;

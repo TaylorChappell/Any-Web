@@ -1,11 +1,11 @@
-# ANY Desktop 0.4.1
+# ANY Desktop 0.4.2
 
-- Households: enter a four-digit code to join, or create your own. Existing profiles and history stay together in their existing household. View your code or switch households in Settings.
-- Profiles, recommendations, watch history and Together invitations stay within your household.
-- Cast and directors are directly on the title page, with clickable portraits.
-- Collections use the same home-page padding and show Start when you have not begun watching.
-- Removed the large Tonight promotional panel.
-- Cached seasonal picks load through a single backend request.
-- Added compact Tomatometer and Popcornmeter displays. The backend owner must configure MDBLIST_API_KEY before real scores appear; unavailable ratings are hidden.
+- Upcoming episodes show their announced air date, or “Date to be announced”. They cannot start playback before that date.
+- Series posters can show compact New episode or New season badges, including recommendations.
+- The notification bell follows shows you watch or save. Open an alert to go to its season, mark alerts read, or mute individual shows.
+- Read and mute settings belong to the selected profile and sync with the TV app. Guest viewing does not create notifications.
+- Shared schedules refresh in the background every six hours using the existing TMDB connection.
 
-The TV companion release is 0.3.1-preview, with a held-OK release fix and stable poster metadata.
+Air dates describe the announced release schedule; they do not confirm a streaming source can play an episode. No additional API key is required.
+
+The TV companion release is 0.3.2-preview.
