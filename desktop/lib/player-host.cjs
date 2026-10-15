@@ -24,7 +24,13 @@ class PlayerHost{
   wc.on('render-process-gone',()=>{this.notify(current,{kind:'error',message:'The video process stopped. Reload the player.'});this.close(spec.session);});
   wc.on('before-input-event',(event,input)=>{
    if(!['keyDown','keyUp'].includes(input.type)||input.control||input.meta||input.alt)return;
-   if([' ','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape','Tab'].includes(input.key)){event.preventDefault();this.key({session:spec.session,key:input.key,type:input.type==='keyUp'?'keyup':'keydown',repeat:!!input.isAutoRepeat});}
+   if([' ','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape','Tab'].includes(input.key)){
+    event.preventDefault();this.key({session:spec.session,key:input.key,type:input.type==='keyUp'?'keyup':'keydown',repeat:!!input.isAutoRepeat});
+    // Chromium suppresses the provider's key-up after a cancelled key-down.
+    // Move keyboard focus to ANY so subsequent repeats and release go directly
+    // to the trusted UI, while the source receives no seek key of its own.
+    if(input.type==='keyDown'&&['ArrowLeft','ArrowRight'].includes(input.key))this.win.webContents.focus();
+   }
   });
   let lastPointer=0,lastPointerPosition='';
   wc.on('before-mouse-event',(_event,mouse)=>{

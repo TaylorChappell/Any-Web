@@ -27,7 +27,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
  const nextEligible=title.media_type==='tv'&&nextEpisodeVisible(stats.position,stats.duration);
  const showNext=nextEligible&&!!next&&!episodes&&!switching&&!confirmed&&!loadFailed;
  useEffect(()=>{let live=true;if(title.media_type==='tv')api.nextEpisode(title,season,episode).then(n=>{if(live)setNext(n)}).catch(()=>{});return()=>{live=false}},[title.id,season,episode]);
- useEffect(()=>{if(showNext&&!nextActivated.current){nextActivated.current=true;nextButton.current?.focus({preventScroll:true})}},[showNext]);
+ useEffect(()=>{if(showNext&&!nextActivated.current){nextActivated.current=true;cancelSeek();nextButton.current?.focus({preventScroll:true})}},[showNext]);
  const advance=async()=>{if(!next||nextBusy)return;setNextBusy(true);try{const value=progressValue(title,season,episode,statsRef.current.position,statsRef.current.duration,true);lastProgress.current=null;await api.change('progress',value.key,value);await playEpisode(next.season,next.episode)}finally{setNextBusy(false)}};
  const nativeAutoHide=desktop?.playbackLayoutVersion===1,idleTimer=useRef(),revealControls=useRef(()=>{}),pointerOnControls=useRef(false);
  partyRef.current=party;
@@ -116,6 +116,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
     revealControls.current();
     e.preventDefault();
     if(e.fromPlayer&&desktop?.heldSeekVersion!==1){command('skip',{delta:e.key==='ArrowLeft'?-10:10});return;}
+    if(e.fromPlayer)root.current?.focus({preventScroll:true});
     seeking.current.handle({key:e.key,type:'keydown',repeat:e.repeat,timeStamp:performance.now()},statsRef.current.position,statsRef.current.duration,target=>command('seek',{position:target}));setSeekPreview(seeking.current.preview);
    }
   };window.addEventListener('keydown',key);window.addEventListener('keyup',key);const off=desktop?.onPlayerKey(message=>{if(message.session!==nativeSession.current)return;if(message.type==='cancel'){cancelSeek();return;}key({key:message.key,type:message.type||'keydown',repeat:message.repeat||false,target:root.current,fromPlayer:true,preventDefault:()=>{}});});return()=>{off?.();window.removeEventListener('keydown',key);window.removeEventListener('keyup',key);};

@@ -160,8 +160,12 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
   const session=nativeOpens.at(-1).session;
   const status=position=>{for(const cb of nativeEvents)cb({session,kind:'status',data:{event:'playerstatus',position,duration:1800,playing:true,playable:true,controllable:true}})};
   await act(async()=>status(1499));assert.equal(document.querySelector('.next-episode-panel'),null);
+  const seeksBeforeNext=nativeCommands.filter(c=>c.command==='seek').length;
+  await act(async()=>{for(const cb of nativeKeys)cb({session,key:'ArrowRight',type:'keydown',repeat:false})});
   await act(async()=>status(1500));await wait(()=>document.querySelector('.next-episode-panel button'));
   const next=document.querySelector('.next-episode-panel button');assert.equal(document.activeElement,next);assert.equal(next.textContent.trim(),'Next episode');assert.equal(nativeBounds.at(-1).fillWindow,false,'native video leaves room for the next-episode button');
+  await act(async()=>{for(const cb of nativeKeys)cb({session,key:'ArrowRight',type:'keyup'})});
+  assert.equal(nativeCommands.filter(c=>c.command==='seek').length,seeksBeforeNext,'next-episode focus cancels an old held seek');
   const before=nativeOpens.length;
   await act(async()=>{for(const cb of nativeKeys)cb({session,key:'ArrowLeft'})});assert.notEqual(document.activeElement,next);
   await act(async()=>{for(const cb of nativeKeys)cb({session,key:'Enter'})});assert.equal(nativeOpens.length,before,'OK after moving away controls playback, not next episode');
