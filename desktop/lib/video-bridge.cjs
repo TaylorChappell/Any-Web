@@ -5,9 +5,39 @@ function installVideoBridge(config){
  if(!config.origins.includes(location.origin)||location.pathname!==config.path||window.top!==window)return false;
  if(globalThis.__ANY_NATIVE_PLAYER__?.session===config.session)return true;
  let video=null,restored=false,episodeChanged=false,pending=[],lastProgress=0,error=null;
- let subtitleLanguage=config.subtitleLanguage??null,subtitleIndex=null;
+ // Keep this function identical in the TV and desktop bridges (covered by tests).
+ function createCaptionGuard(){
+  const watched=new WeakSet();
+  // Movish uses Vidstack's own tracks/DOM, not HTMLVideoElement.textTracks.
+  // Hide only caption surfaces and caption controls; never the picture, audio,
+  // loading/error messages, source selection or general settings.
+  const css=`video::cue{color:transparent!important;background:transparent!important;text-shadow:none!important;opacity:0!important}
+  media-captions,.vds-captions,.jw-captions,.vjs-text-track-display,.plyr__captions,.shaka-text-container,.art-subtitle,.dplayer-subtitle,
+  media-caption-button,.vds-caption-button,.jw-icon-cc,.vjs-subs-caps-button,[data-plyr="captions"],.shaka-caption-button,
+  #mv-settings [data-tab="subs"],#mv-settings [data-tab="style"],#mv-tab-subs,#mv-tab-style{display:none!important;visibility:hidden!important;pointer-events:none!important}`;
+  function disable(list){
+   if(!list)return;
+   try{for(const t of Array.from(list))if(['subtitles','captions'].includes(t.kind)&&t.mode!=='disabled')t.mode='disabled';}catch{}
+   if(!watched.has(list)){
+    watched.add(list);
+    for(const event of ['addtrack','change','add','mode-change'])list.addEventListener?.(event,()=>disable(list));
+   }
+  }
+  return function enforce(root){
+   const doc=root.ownerDocument||root;
+   let sheet=root.querySelector('#any-captions-off');
+   if(!sheet){const parent=root.head||root.documentElement||(root.nodeType===11?root:null);if(!parent)return;sheet=doc.createElement('style');sheet.id='any-captions-off';parent.appendChild(sheet);}
+   if(sheet.textContent!==css)sheet.textContent=css;
+   for(const media of root.querySelectorAll('video,media-player')){
+    disable(media.textTracks);
+    for(const track of media.querySelectorAll('track[kind="subtitles"],track[kind="captions"],track:not([kind])'))if(track.hasAttribute('default'))track.removeAttribute('default');
+   }
+   // Vidstack/custom elements can render captions in open shadow roots.
+   for(const host of root.querySelectorAll('media-player,media-provider,media-video-layout,media-captions'))if(host.shadowRoot)enforce(host.shadowRoot);
+  };
+ }
+ const captionsOff=createCaptionGuard();
  const subtitleTracks=()=>Array.from(video?.textTracks||[]).map((t,index)=>({t,index})).filter(({t})=>['subtitles','captions'].includes(t.kind)).slice(0,32);
- function applySubtitles(){if(subtitleLanguage===null)return;const tracks=subtitleTracks(),target=tracks.find(x=>x.index===subtitleIndex)||tracks.find(({t})=>t.language===subtitleLanguage)||tracks[0];for(const {t,index}of tracks)t.mode=subtitleLanguage!=='off'&&index===target?.index?'showing':'disabled';}
  const bound=new WeakSet();
  const layout=new Map();let layoutVideo=null,layoutParent=null;
  function style(node,values){
@@ -53,17 +83,17 @@ function installVideoBridge(config){
   try{v.currentTime=Math.max(0,Math.min(config.start,v.duration-.25));restored=true;if(config.party)v.pause();else{v.muted=false;Promise.resolve(v.play()).catch(()=>{error='play-rejected';});}}catch{}
  }
  function bind(){
-  const all=docs(document),area=v=>{const r=v.getBoundingClientRect();return r.width*r.height;};
+  const all=docs(document);for(const doc of all)captionsOff(doc);const area=v=>{const r=v.getBoundingClientRect();return r.width*r.height;};
   const next=all.map(d=>d.querySelector('#mv-player video')).find(Boolean)||all.flatMap(d=>Array.from(d.querySelectorAll('video'))).filter(v=>area(v)>=14400).sort((a,b)=>area(b)-area(a))[0];
   if(!next){if(video&&!video.isConnected){video=null;restored=false;clearLayout();}return;}
-  if(next!==video){video=next;restored=false;error=null;subtitleIndex=null;}
+  if(next!==video){video=next;restored=false;error=null;}
   if(!bound.has(next)){
    bound.add(next);if(config.party)next.pause();
    for(const name of ['playing','pause','seeked','ended','timeupdate'])next.addEventListener(name,()=>{if(next!==video)return;restore(next);report(name==='playing'?'play':name);});
    for(const name of ['loadedmetadata','canplay'])next.addEventListener(name,()=>restore(next));
    next.addEventListener('error',()=>{if(next===video)error='media-error';});
   }
-  restore(next);applySubtitles();fitVideo(next);
+  restore(next);fitVideo(next);
  }
  window.addEventListener('message',event=>{
   if(config.source!=='movish'||event.source!==window||event.origin!==location.origin)return;
@@ -76,7 +106,7 @@ function installVideoBridge(config){
   control(command,time){bind();if(command==='getStatus')return true;if(!video||episodeChanged)return false;
    try{if(command==='play'){video.muted=false;error=null;Promise.resolve(video.play()).catch(()=>{error='play-rejected';});}
     else if(command==='pause')video.pause();
-    else if(command==='subtitle'){const tracks=subtitleTracks();if(time!==-1&&!tracks.some(x=>x.index===time))return false;subtitleIndex=time;subtitleLanguage=time===-1?'off':tracks.find(x=>x.index===time).t.language||'';applySubtitles();}
+    else if(command==='subtitle'){if(time!==-1)return false;for(const doc of docs(document))captionsOff(doc);}
     else if(command==='seek'&&Number.isFinite(time)&&Number.isFinite(video.duration))video.currentTime=Math.max(0,Math.min(video.duration,time));
     else return false;return true;
    }catch{return false;}

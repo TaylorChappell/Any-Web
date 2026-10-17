@@ -20,7 +20,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
  const [stats,setStats]=useState(statsRef.current),[controls,setControls]=useState(true),[episodes,setEpisodes]=useState(false);
  const [selectedSeason,setSelectedSeason]=useState(season),[ready,setReady]=useState(false),[waited,setWaited]=useState(false);
  const [loadFailed,setLoadFailed]=useState(false),[confirmed,setConfirmed]=useState(false),[switching,setSwitching]=useState(''),[busy,setBusy]=useState(false);
- const [subtitlesOpen,setSubtitlesOpen]=useState(false),[loadingAge,setLoadingAge]=useState(0),[recovery,setRecovery]=useState(null);
+ const [loadingAge,setLoadingAge]=useState(0),[recovery,setRecovery]=useState(null);
  const health=useRef({started:Date.now(),lastReport:Date.now(),lastAdvance:Date.now()}),lastConfirmed=useRef(position);
  const [local,setLocal]=useState({phase:'loading',ready:false,playing:false});
  const [next,setNext]=useState(null),[nextBusy,setNextBusy]=useState(false),nextButton=useRef(),nextActivated=useRef(false);
@@ -78,7 +78,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
   const receive=event=>receiveData(parsePlayerEvent(event,iframe.current?.contentWindow,source,title,season,episode));
   const unsubscribe=desktop?.onPlayerEvent(message=>{if(message.session!==nativeSession.current)return;if(message.kind==='pointer'){pointerOnControls.current=false;revealControls.current();return;}if(message.kind==='error'){setLoadFailed(true);sync.current?.block();if(sync.current)setLocal(sync.current.view());onError(message.message);return;}receiveData(nativePlayerEvent(message,nativeSession.current));});
   if(!desktop)window.addEventListener('message',receive);
-  if(desktop)desktop.openPlayer({session:nativeSession.current,source,type:title.media_type,id:title.id,season,episode,position,party:!!party,subtitleLanguage:localStorage.getItem('any.subtitles')}).then(()=>{window.dispatchEvent(new Event('resize'));sendPlayer('getStatus');}).catch(error=>{setLoadFailed(true);onError(error.message);});
+  if(desktop)desktop.openPlayer({session:nativeSession.current,source,type:title.media_type,id:title.id,season,episode,position,party:!!party,subtitleLanguage:'off'}).then(()=>{window.dispatchEvent(new Event('resize'));sendPlayer('getStatus');}).catch(error=>{setLoadFailed(true);onError(error.message);});
   const tick=()=>{
    setLoadingAge(Math.floor((Date.now()-health.current.started)/1000));
    setRecovery(playbackIssue({...health.current,...statsRef.current}));
@@ -106,7 +106,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
     if(e.fromPlayer&&['Enter',' '].includes(e.key)){e.preventDefault();advance();return;}
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();nextButton.current.blur();root.current?.focus({preventScroll:true});revealControls.current();setControls(true);return;}
    }
-   if(e.key==='Escape'){e.preventDefault();if(subtitlesOpen)setSubtitlesOpen(false);else if(episodes)setEpisodes(false);else if(controls)setControls(false);else go(`/${title.media_type}/${title.id}`)}
+   if(e.key==='Escape'){e.preventDefault();if(episodes)setEpisodes(false);else if(controls)setControls(false);else go(`/${title.media_type}/${title.id}`)}
    else if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();revealControls.current();setControls(true)}
    else if(e.key==='Tab'&&e.fromPlayer){e.preventDefault();revealControls.current();setControls(true);requestAnimationFrame(()=>root.current?.querySelector('.player-top button')?.focus())}
    else if((e.key===' '||e.key==='Enter')&&e.target.tagName!=='BUTTON'){
@@ -120,26 +120,26 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
     seeking.current.handle({key:e.key,type:'keydown',repeat:e.repeat,timeStamp:performance.now()},statsRef.current.position,statsRef.current.duration,target=>command('seek',{position:target}));setSeekPreview(seeking.current.preview);
    }
   };window.addEventListener('keydown',key);window.addEventListener('keyup',key);const off=desktop?.onPlayerKey(message=>{if(message.session!==nativeSession.current)return;if(message.type==='cancel'){cancelSeek();return;}key({key:message.key,type:message.type||'keydown',repeat:message.repeat||false,target:root.current,fromPlayer:true,preventDefault:()=>{}});});return()=>{off?.();window.removeEventListener('keydown',key);window.removeEventListener('keyup',key);};
- },[controls,episodes,subtitlesOpen,showNext,next,nextBusy,canControl]);
+ },[controls,episodes,showNext,next,nextBusy,canControl]);
  const playing=party?local.playing:stats.playing,positionNow=seekPreview??stats.position;
  const waiting=party&&(!local.ready||!member?.ready),showHelp=!!recovery||loadFailed||(waited&&(!ready||waiting))||local.phase==='blocked';
- const showChrome=desktop?(!nativeAutoHide||seekPreview!==null||controls||waiting||showHelp||episodes||subtitlesOpen||switching||confirmed):(seekPreview!==null||controls||waiting);
- useEffect(()=>{if(!canControl||episodes||subtitlesOpen||switching||confirmed)cancelSeek();},[canControl,episodes,subtitlesOpen,switching,confirmed]);
+ const showChrome=desktop?(!nativeAutoHide||seekPreview!==null||controls||waiting||showHelp||episodes||switching||confirmed):(seekPreview!==null||controls||waiting);
+ useEffect(()=>{if(!canControl||episodes||switching||confirmed)cancelSeek();},[canControl,episodes,switching,confirmed]);
  useEffect(()=>{const hide=()=>{if(document.hidden)cancelSeek()};window.addEventListener('blur',cancelSeek);document.addEventListener('visibilitychange',hide);return()=>{seeking.current.cancel();window.removeEventListener('blur',cancelSeek);document.removeEventListener('visibilitychange',hide);};},[]);
  useEffect(()=>{
   if(!nativeAutoHide)return;
   const hide=()=>{if(pointerOnControls.current||root.current?.querySelector('.player-controls :focus-visible,.player-top :focus-visible'))return;if(document.activeElement!==nextButton.current)root.current?.focus({preventScroll:true});setControls(false)};
-  const activity=()=>{setControls(true);clearTimeout(idleTimer.current);if(playing&&!waiting&&!showHelp&&!episodes&&!subtitlesOpen&&!switching&&!confirmed)idleTimer.current=setTimeout(hide,3000)};
+  const activity=()=>{setControls(true);clearTimeout(idleTimer.current);if(playing&&!waiting&&!showHelp&&!episodes&&!switching&&!confirmed)idleTimer.current=setTimeout(hide,3000)};
   revealControls.current=activity;activity();
   return()=>{clearTimeout(idleTimer.current);revealControls.current=()=>{}};
- },[nativeAutoHide,playing,!!waiting,showHelp,episodes,subtitlesOpen,switching,confirmed]);
+ },[nativeAutoHide,playing,!!waiting,showHelp,episodes,switching,confirmed]);
  useEffect(()=>{
   if(!desktop||!stage.current)return;
-  const resize=()=>{const r=stage.current.getBoundingClientRect();desktop.setPlayerBounds({session:nativeSession.current,x:r.x,y:r.y,width:r.width,height:r.height,fillWindow:nativeAutoHide&&!showChrome&&!showNext,visible:!episodes&&!subtitlesOpen&&!switching&&!confirmed&&!document.hidden}).catch(()=>{});};
+  const resize=()=>{const r=stage.current.getBoundingClientRect();desktop.setPlayerBounds({session:nativeSession.current,x:r.x,y:r.y,width:r.width,height:r.height,fillWindow:nativeAutoHide&&!showChrome&&!showNext,visible:!episodes&&!switching&&!confirmed&&!document.hidden}).catch(()=>{});};
   const observer=new ResizeObserver(resize);observer.observe(stage.current);resize();
   window.addEventListener('resize',resize);document.addEventListener('visibilitychange',resize);window.addEventListener('scroll',resize,true);
   return()=>{observer.disconnect();window.removeEventListener('resize',resize);document.removeEventListener('visibilitychange',resize);window.removeEventListener('scroll',resize,true);};
- },[episodes,subtitlesOpen,switching,confirmed,!!showChrome,showNext,nativeAutoHide]);
+ },[episodes,switching,confirmed,!!showChrome,showNext,nativeAutoHide]);
  const failureText=recovery?`${recovery}. Retry from your saved position or try another source.`:loadFailed?`${src.name} could not load its player.`:
   local.failure==='no-response'?`${src.name} has not returned a player connection. Reload or choose another party source.`:
   local.failure==='no-media'?`${src.name} connected, but has not loaded a video for this title. Try another party source.`:
@@ -168,7 +168,7 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
    <div className="player-actions">
     <Button icon={playing?'pause':'play'} disabled={!canControl} aria-label={playing?'Pause':'Play'} onClick={()=>command(playing?'pause':'play')}/>
     <Button disabled={!canControl} onClick={()=>command('skip',{delta:-10})}>−10s</Button><Button disabled={!canControl} onClick={()=>command('skip',{delta:10})}>+10s</Button><Button icon="restart" disabled={!canControl} aria-label="Start over" onClick={()=>command('restart')}/>
-    {title.media_type==='tv'&&<Button icon="list" title="Episodes" aria-label="Episodes" onClick={()=>setEpisodes(true)}/>}<Button icon="captions" title="Subtitles" aria-label="Subtitles" aria-pressed={stats.subtitles?.some(t=>t.selected)||false} onClick={()=>setSubtitlesOpen(true)}/><span className="spacer"/>
+    {title.media_type==='tv'&&<Button icon="list" title="Episodes" aria-label="Episodes" onClick={()=>setEpisodes(true)}/>}<span className="spacer"/>
     <select aria-label={party?'Party source':'Playback source'} value={source} disabled={busy} onChange={e=>party?setSwitching(e.target.value):go(watchLink(title,{season,episode,source:e.target.value,position:lastConfirmed.current}))}>
      {SOURCES.filter(s=>!party||((desktop?desktopPartySupported(s.id):s.controls)&&api.sources.includes(s.id))).map(s=><option key={s.id} value={s.id}>Source {SOURCES.indexOf(s)+1} · {s.name}</option>)}
     </select>{(!desktop||nativeAutoHide&&playing&&!waiting)&&<Button onClick={()=>{root.current?.focus({preventScroll:true});setControls(false)}}>Hide controls</Button>}
@@ -178,7 +178,6 @@ function Player({title,source,season,episode,party,position,onError,onReload}) {
   </div>}
   {!desktop&&!controls&&!waiting&&<Button className="show-controls" onClick={()=>setControls(true)}>Show controls</Button>}
   {switching&&<Modal title="Change the party source?" onClose={()=>setSwitching('')}><p>Switch everyone to {sourceById(switching).name}. The party pauses and each player reloads at the same position. Everyone stays in the party.</p><Button tone="red" disabled={busy} onClick={async()=>{setBusy(true);try{await api.command('join',{partyId:party.id,source:switching});setSwitching('')}catch(e){onError(e.message)}finally{setBusy(false)}}}>Switch source for everyone</Button></Modal>}
-  {subtitlesOpen&&<Modal title="Subtitles" onClose={()=>setSubtitlesOpen(false)}>{desktop?.subtitleControlVersion===1&&stats.subtitles?.length?<div className="subtitle-tracks"><Button aria-pressed={!stats.subtitles.some(t=>t.selected)} onClick={()=>{localStorage.setItem('any.subtitles','off');sendPlayer('subtitle',-1);setSubtitlesOpen(false)}}>Off</Button>{stats.subtitles.map(t=><Button key={t.index} icon={t.selected?'check':undefined} aria-pressed={t.selected} onClick={()=>{localStorage.setItem('any.subtitles',t.language||'');sendPlayer('subtitle',t.index);setSubtitlesOpen(false)}}>{t.label}</Button>)}</div>:<p className="muted">{desktop&&desktop.subtitleControlVersion!==1?'Update ANY Desktop to use its subtitle controls.':'This source has not exposed subtitle tracks to ANY. Use its own subtitle controls or try another source.'}</p>}</Modal>}
   {episodes&&<Modal wide title="Choose an episode" onClose={()=>setEpisodes(false)}><Episodes title={title} season={selectedSeason} onSeason={setSelectedSeason} onPlay={playEpisode}/></Modal>}
   {confirmed&&<Modal title="Mark as watched?" onClose={()=>setConfirmed(false)}><p>This marks {title.media_type==='tv'?`season ${season}, episode ${episode}`:title.title} complete in this profile’s history.</p><Button tone="red" onClick={()=>{const value=progressValue(title,title.media_type==='tv'?season:0,title.media_type==='tv'?episode:0,stats.duration||title.runtime*60,stats.duration||title.runtime*60,true);api.change('progress',value.key,value);setConfirmed(false)}}>Mark watched</Button></Modal>}
  </main>;

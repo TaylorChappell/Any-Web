@@ -123,6 +123,7 @@ for(const native of [false,true])test((native?'desktop':'web')+' flow connects f
 
  if(native){
   await act(async()=>{location.hash='/watch/movie/550?source=movish';window.dispatchEvent(new window.HashChangeEvent('hashchange'))});await wait(()=>nativeOpens.at(-1)?.party===false);
+  assert.equal(document.querySelector('[aria-label="Subtitles"]'),null);assert.equal(nativeOpens.at(-1).subtitleLanguage,'off');
   const session=nativeOpens.at(-1).session;
   const soloStatus=playing=>{for(const cb of nativeEvents)cb({session,kind:'status',data:{event:'playerstatus',position:15,duration:7200,playing,playable:true,controllable:true}})};
   await act(async()=>soloStatus(true));

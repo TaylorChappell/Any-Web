@@ -1,3 +1,11 @@
+# 0.4.4 — Captions off
+
+- Removed ANY’s subtitle button and track picker.
+- Native video and Vidstack caption tracks remain disabled, including tracks added or re-enabled after playback starts.
+- Hides the separate caption overlays used by Movish and common player frameworks, plus their caption controls. Saved subtitle preferences no longer enable captions.
+- Playback position, audio, Together synchronization and source selection are preserved.
+- Captions burned into the picture cannot be removed. The browser website cannot force changes inside an unsupported cross-origin provider iframe; this native enforcement requires the updated desktop app.
+
 # ANY Desktop 0.4.3
 
 - Hold left or right to seek faster over time. A tap still moves ten seconds; the timeline previews your position and applies one seek when you release. Reversing direction resets the speed.
